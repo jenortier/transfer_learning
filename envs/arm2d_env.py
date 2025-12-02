@@ -59,7 +59,11 @@ class Arm2DEnv(gym.Env):
 #		angle = self.np_random.uniform(-np.pi, np.pi)
 #		self.target = np.abs(np.array([radius*np.cos(angle), radius*np.sin(angle)], dtype=np.float32))
 
-		self.target = [1, 0.5]
+#		self.target = [1, 0.5]
+		
+
+		self.target = self.np_random.uniform(0.3, 1.4, size=2)
+
 		
 		return self._get_obs(), {}
 

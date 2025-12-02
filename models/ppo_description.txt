@@ -1,0 +1,10 @@
+=== ppo 1 a 3 =========================
+entrainement cible fixe
+
+=== ppo 4 a 9 =========================
+cible choisis aleatoirement dans un petit carré
+les valeures max avant que le modele n'arrive plus a apprendre sont :
+ 	0.3 < x < 1.4
+	0.3 < y < 1.4
+
+=== 

@@ -34,7 +34,7 @@ def render_arm(env, ax):
 
 # --- Tester plusieurs épisodes ---
 num_tests = 5
-max_steps = 200
+max_steps = 150
 
 for test_ep in range(num_tests):
     # Réinitialiser l'environnement avec positions aléatoires
