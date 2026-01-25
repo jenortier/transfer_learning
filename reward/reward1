@@ -1,5 +1,0 @@
-reward = np.linalg.norm(eff - self.target)
-
-if dist < 0.05:
-    reward += 10.0
-
