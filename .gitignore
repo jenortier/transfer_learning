@@ -1,25 +1,16 @@
-# 🔥 Python cache
+# Python cache
 __pycache__/
 *.pyc
-*.pyo
 
-# 📦 Environnement virtuel
+# venv
 venv/
-.env/
 
-# 📊 Logs & modèles (très important pour ton projet RL)
+# logs / modèles
 logs/
 models/
 
-# 📁 Data (optionnel selon usage)
+# data (optionnel)
 data/
 
-# 🧠 Jupyter
+# jupyter
 .ipynb_checkpoints/
-
-# ⚙️ OS / éditeur
-.DS_Store
-*.swp
-
-# 🧪 Debug / temp
-*.log
