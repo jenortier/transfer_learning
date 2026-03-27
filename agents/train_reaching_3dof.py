@@ -1,10 +1,12 @@
 import os
+import torch
 from torch import nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from envs.arm3dof_env import Arm3DoFEnv
+import time
 
 
 def linear_schedule(initial_value: float):
@@ -28,9 +30,10 @@ TOTAL_TIMESTEPS = 5_000_000
 # ==============================
 # Directories
 # ==============================
+run_id              = int(time.time())
 run_name            = "ppo_reach_3dof"
-tensorboard_log_dir = f"./logs/{run_name}/"
-model_dir           = f"./models/{run_name}/"
+tensorboard_log_dir = f"./logs/{run_name}_{run_id}/"
+model_dir           = f"./models/{run_name}_{run_id}/"
 os.makedirs(model_dir, exist_ok=True)
 os.makedirs(tensorboard_log_dir, exist_ok=True)
 
@@ -75,23 +78,21 @@ eval_env = VecNormalize(
 # Evaluation callback with VecNormalize sync + vec_normalize save
 # ==============================
 class SyncedEvalCallback(EvalCallback):
-    """
-    - Syncs VecNormalize stats before each eval.
-    - Saves vec_normalize.pkl alongside best_model so test.py can load it.
-    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.best_mean_reward = -np.inf
+
     def _on_step(self) -> bool:
         sync_envs_normalization(self.training_env, self.eval_env)
+
         result = super()._on_step()
-        # Sauvegarde vec_normalize à chaque fois que best_model est sauvegardé
-        if self.best_mean_reward == self.last_mean_reward if hasattr(self, "last_mean_reward") else False:
-            pass
+
+        if self.last_mean_reward > self.best_mean_reward:
+            self.best_mean_reward = self.last_mean_reward
+            vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
+            self.training_env.save(vec_path)
+
         return result
-
-    def _on_rollout_end(self) -> None:
-        # Sauvegarde systématique du vec_normalize courant
-        vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
-        self.training_env.save(vec_path)
-
 
 
 eval_callback = SyncedEvalCallback(
@@ -114,11 +115,19 @@ policy_kwargs = dict(
 )
 
 # ==============================
+# Device setup (GPU or CPU)
+# ==============================
+#device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
+print(f"Using device: {device}")
+
+# ==============================
 # PPO model — hyperparamètres ajustés
 # ==============================
 model = PPO(
     "MlpPolicy",
     train_env,
+    #device=device,
     learning_rate=linear_schedule(3e-4),  # 3e-4 → 3e-5 linéairement
     n_steps=8192,        # ↑ 4096→8192 : plus de diversité par rollout pour le 3dof
     batch_size=1024,     # ↑ 512→1024 : cohérent avec n_steps=8192

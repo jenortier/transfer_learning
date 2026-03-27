@@ -5,6 +5,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from envs.arm2dof_env import Arm2DoFEnv
+import time
 
 
 def linear_schedule(initial_value: float):
@@ -22,15 +23,16 @@ def sync_envs_normalization(train_env, eval_env):
     eval_env.obs_rms = train_env.obs_rms
     eval_env.ret_rms = train_env.ret_rms
 
-TOTAL_TIMESTEPS = 3_000_000  # suffisant pour converger et affiner
+TOTAL_TIMESTEPS = 3_500_000  # suffisant pour converger et affiner
 
 
 # ==============================
 # Directories
 # ==============================
+run_id              = int(time.time())
 run_name            = "ppo_reach_2dof"
-tensorboard_log_dir = f"./logs/{run_name}/"
-model_dir           = f"./models/{run_name}/"
+tensorboard_log_dir = f"./logs/{run_name}_{run_id}/"
+model_dir           = f"./models/{run_name}_{run_id}/"
 os.makedirs(model_dir, exist_ok=True)
 os.makedirs(tensorboard_log_dir, exist_ok=True)
 
@@ -75,23 +77,21 @@ eval_env = VecNormalize(
 # Evaluation callback with VecNormalize sync + vec_normalize save
 # ==============================
 class SyncedEvalCallback(EvalCallback):
-    """
-    - Syncs VecNormalize stats before each eval.
-    - Saves vec_normalize.pkl alongside best_model so test.py can load it.
-    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.best_mean_reward = -np.inf
+
     def _on_step(self) -> bool:
         sync_envs_normalization(self.training_env, self.eval_env)
+
         result = super()._on_step()
-        # Sauvegarde vec_normalize à chaque fois que best_model est sauvegardé
-        if self.best_mean_reward == self.last_mean_reward if hasattr(self, "last_mean_reward") else False:
-            pass
+
+        if self.last_mean_reward > self.best_mean_reward:
+            self.best_mean_reward = self.last_mean_reward
+            vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
+            self.training_env.save(vec_path)
+
         return result
-
-    def _on_rollout_end(self) -> None:
-        # Sauvegarde systématique du vec_normalize courant
-        vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
-        self.training_env.save(vec_path)
-
 
 
 eval_callback = SyncedEvalCallback(

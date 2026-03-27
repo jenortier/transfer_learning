@@ -7,8 +7,8 @@ from envs.arm2dof_env import Arm2DoFEnv
 # --- Configuration ---
 MODEL_PATH  = "models/ppo_reach_2dof/best_model.zip"   # best_model plutôt que final
 VECNORM_PATH = "models/ppo_reach_2dof/vec_normalize.pkl"
-NUM_EPISODES = 1000
-MAX_STEPS    = 200
+NUM_EPISODES = 2000
+MAX_STEPS    = 100
 
 # --- Charger le modèle ---
 model = PPO.load(MODEL_PATH)
