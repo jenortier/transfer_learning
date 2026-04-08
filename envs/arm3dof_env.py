@@ -24,8 +24,7 @@ class Arm3DoFEnv(gym.Env):
         self.l1 = 1.0
         self.l2 = 1.0
         self.l3 = 1.0
-        self.max_reach = 2 # comme env arm 2DoF 
-        # max reach reel = 3 m car self.l1 + self.l2 + self.l3
+        self.max_reach = self.l1 + self.l2 + self.l3   # 3.0 m
 
         self.theta1_min = -np.pi
         self.theta1_max =  np.pi
@@ -108,6 +107,7 @@ class Arm3DoFEnv(gym.Env):
         reward   = self.alpha * progress / self.max_reach
         reward  -= self.lambda_ctrl * float(np.dot(action, action))
         reward  -= 0.02 * at_limit
+        reward  -= 0.1 * np.tanh(dist) 
 
         success = dist < self.epsilon
         if success:
