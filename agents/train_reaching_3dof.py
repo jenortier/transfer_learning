@@ -1,12 +1,10 @@
 import os
-import torch
 from torch import nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from envs.arm3dof_env import Arm3DoFEnv
-import time
 
 
 def linear_schedule(initial_value: float):
@@ -24,16 +22,16 @@ def sync_envs_normalization(train_env, eval_env):
     eval_env.obs_rms = train_env.obs_rms
     eval_env.ret_rms = train_env.ret_rms
 
-TOTAL_TIMESTEPS = 5_000_000
+TOTAL_TIMESTEPS = 6_000_000
 
 
 # ==============================
 # Directories
 # ==============================
-run_id              = int(time.time())
-run_name            = "ppo_reach_3dof"
-tensorboard_log_dir = f"./logs/{run_name}_{run_id}/"
-model_dir           = f"./models/{run_name}_{run_id}/"
+run_id              = 4
+run_name            = f"ppo_reach_3dof_{run_id}"
+tensorboard_log_dir = f"./logs/{run_name}/"
+model_dir           = f"./models/{run_name}/"
 os.makedirs(model_dir, exist_ok=True)
 os.makedirs(tensorboard_log_dir, exist_ok=True)
 
@@ -78,21 +76,23 @@ eval_env = VecNormalize(
 # Evaluation callback with VecNormalize sync + vec_normalize save
 # ==============================
 class SyncedEvalCallback(EvalCallback):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.best_mean_reward = -np.inf
-
+    """
+    - Syncs VecNormalize stats before each eval.
+    - Saves vec_normalize.pkl alongside best_model so test.py can load it.
+    """
     def _on_step(self) -> bool:
         sync_envs_normalization(self.training_env, self.eval_env)
-
         result = super()._on_step()
-
-        if self.last_mean_reward > self.best_mean_reward:
-            self.best_mean_reward = self.last_mean_reward
-            vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
-            self.training_env.save(vec_path)
-
+        # Sauvegarde vec_normalize à chaque fois que best_model est sauvegardé
+        if self.best_mean_reward == self.last_mean_reward if hasattr(self, "last_mean_reward") else False:
+            pass
         return result
+
+    def _on_rollout_end(self) -> None:
+        # Sauvegarde systématique du vec_normalize courant
+        vec_path = os.path.join(self.best_model_save_path, "vec_normalize.pkl")
+        self.training_env.save(vec_path)
+
 
 
 eval_callback = SyncedEvalCallback(
@@ -110,16 +110,9 @@ eval_callback = SyncedEvalCallback(
 # ==============================
 policy_kwargs = dict(
     activation_fn=nn.Tanh,
-    net_arch=[256, 256],
+    net_arch=[256, 256, 256],
     log_std_init=-1.0,   # std initiale ~0.37 → politique plus précise dès le départ
 )
-
-# ==============================
-# Device setup (GPU or CPU)
-# ==============================
-#device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
-print(f"Using device: {device}")
 
 # ==============================
 # PPO model — hyperparamètres ajustés
@@ -127,19 +120,18 @@ print(f"Using device: {device}")
 model = PPO(
     "MlpPolicy",
     train_env,
-    #device=device,
-    learning_rate=linear_schedule(3e-4),  # 3e-4 → 3e-5 linéairement
-    n_steps=8192,        # ↑ 4096→8192 : plus de diversité par rollout pour le 3dof
-    batch_size=1024,     # ↑ 512→1024 : cohérent avec n_steps=8192
-    n_epochs=3,          # ↓ 5→3 : 3dof génère des gradients plus grands → moins de passes
+    learning_rate=1e-4, 
+    n_steps=4096,        # ↑ 2048→4096 : batches plus diversifiés, gradients moins bruités
+    batch_size=512,      # ↑ 256→512 : cohérent avec n_steps plus grand
+    n_epochs=3,          # ↓ 10→5 : moins de passes sur mêmes données → KL reste basse
     gamma=0.99,
     gae_lambda=0.95,
-    clip_range=0.2,
+    clip_range=0.1,
     clip_range_vf=None,
     ent_coef=0.001,  # légère entropie pour éviter convergence prématurée
     vf_coef=0.5,
     max_grad_norm=0.5,
-    target_kl=0.01,      # plus strict pour le 3dof : espace d'action plus grand
+    target_kl=0.015,     # légèrement relevé : avec n_epochs=5 le drift est moindre
     verbose=1,
     tensorboard_log=tensorboard_log_dir,
     policy_kwargs=policy_kwargs,

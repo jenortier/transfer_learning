@@ -1,19 +1,3 @@
-"""
-Transfer Learning via Trajectory Correspondence
-================================================
-Part 2: Train State Mapper MLP  (3-DoF obs  → 2-DoF obs  equivalent)
-Part 3: Train Action Mapper MLP (3-DoF obs + 2-DoF action → 3-DoF action)
-
-Key improvements over v1:
-  • Action mapper is CONTEXT-AWARE: input = (obs_3dof, action_2dof).
-    The same 2-DoF action implies different 3-DoF actions depending on the
-    current joint configuration (Jacobian varies with state). Adding the 3-DoF
-    state as context lets the mapper condition on the configuration.
-  • Larger networks (256 units + LayerNorm).
-  • More epochs + cosine-annealing LR schedule.
-  • Train/val split for early stopping on best val loss.
-"""
-
 import os
 import pickle
 import numpy as np
@@ -99,7 +83,7 @@ class StateMapperTrainer:
                     best_val = val_loss
                     best_state = {k: v.clone() for k, v in self.model.state_dict().items()}
                 print(f"  Epoch {epoch+1:3d}/{epochs}  train={total_loss/n_b:.6f}  val={val_loss:.6f}"
-                      f"  {'← best' if val_loss == best_val else ''}")
+                      f"  {'' if val_loss == best_val else '-'}")
 
         if best_state is not None:
             self.model.load_state_dict(best_state)
@@ -120,15 +104,7 @@ class StateMapperTrainer:
 # ============================================================================
 
 class ActionMapperMLP(nn.Module):
-    """
-    Context-aware action mapper.
 
-    Input:  concat(obs_3dof [10], action_2dof [2]) = 12 dimensions
-    Output: action_3dof [3]
-
-    The 3-DoF state provides the Jacobian context so the mapper can decide
-    how to distribute the 2-DoF joint motion across the 3 DoFs.
-    """
     def __init__(self, state_dim: int = 10, action_2dof_dim: int = 2,
                  output_dim: int = 3, hidden: int = 256):
         super().__init__()
@@ -208,7 +184,7 @@ class ActionMapperTrainer:
                     best_val = val_loss
                     best_state = {k: v.clone() for k, v in self.model.state_dict().items()}
                 print(f"  Epoch {epoch+1:3d}/{epochs}  train={total_loss/n_b:.6f}  val={val_loss:.6f}"
-                      f"  {'← best' if val_loss == best_val else ''}")
+                      f"  {'' if val_loss == best_val else '-'}")
 
         if best_state is not None:
             self.model.load_state_dict(best_state)
@@ -236,9 +212,9 @@ def main():
     state_mapper_path = data_dir / "state_mapper.pt"
     action_mapper_path = data_dir / "action_mapper.pt"
 
-    print("\n" + "="*70)
+    print("\n" + "="*60)
     print("LOADING TRAJECTORIES")
-    print("="*70)
+    print("="*60)
     with open(traj_path, 'rb') as f:
         trajectories = pickle.load(f)
     meta = trajectories['metadata']
@@ -249,24 +225,24 @@ def main():
         print("     Re-run eq_trajectories.py first for best results.\n")
 
     # ---- State Mapper ----
-    print("\n" + "="*70)
+    print("\n" + "="*60)
     print("PART 2: STATE MAPPER  (3-DoF obs → 2-DoF obs)")
-    print("="*70)
+    print("="*60)
     st = StateMapperTrainer(device=device)
     st.train(trajectories, epochs=300, batch_size=512)
     st.save(str(state_mapper_path))
 
     # ---- Action Mapper ----
-    print("\n" + "="*70)
+    print("\n" + "="*60)
     print("PART 3: ACTION MAPPER  (obs_3dof + action_2dof → action_3dof)")
-    print("="*70)
+    print("="*60)
     at = ActionMapperTrainer(device=device)
     at.train(trajectories, epochs=300, batch_size=512)
     at.save(str(action_mapper_path))
 
-    print("\n" + "="*70)
+    print("\n" + "="*60)
     print("MAPPER TRAINING COMPLETE")
-    print("="*70)
+    print("="*60)
     print(f"  State Mapper  → {state_mapper_path}")
     print(f"  Action Mapper → {action_mapper_path}")
     print("\nTransfer pipeline at inference:")
@@ -274,7 +250,7 @@ def main():
     print("  2. obs_2dof_norm  = vec_norm_2dof.normalize_obs(obs_2dof_equiv)")
     print("  3. action_2dof    = policy_2dof(obs_2dof_norm)")
     print("  4. action_3dof    = action_mapper(obs_3dof, action_2dof)   ← context-aware")
-    print("="*70 + "\n")
+    print("="*60 + "\n")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
 import os
+import numpy as np
 from torch import nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from envs.arm2dof_env import Arm2DoFEnv
-import time
 
 
 def linear_schedule(initial_value: float):
@@ -23,13 +23,13 @@ def sync_envs_normalization(train_env, eval_env):
     eval_env.obs_rms = train_env.obs_rms
     eval_env.ret_rms = train_env.ret_rms
 
-TOTAL_TIMESTEPS = 3_500_000  # suffisant pour converger et affiner
+TOTAL_TIMESTEPS = 3_500_000 
 
 
 # ==============================
 # Directories
 # ==============================
-run_id              = int(time.time())
+run_id              = 3
 run_name            = "ppo_reach_2dof"
 tensorboard_log_dir = f"./logs/{run_name}_{run_id}/"
 model_dir           = f"./models/{run_name}_{run_id}/"
@@ -105,6 +105,15 @@ eval_callback = SyncedEvalCallback(
 )
 
 # ==============================
+# PPO hyperparameters variation def
+# ==============================
+def entropy_schedule(progress_remaining: float) -> float:
+    return max(0.0005, 0.005 * (0.1 + 0.9 * progress_remaining))
+
+def clip_schedule(progress_remaining: float) -> float:
+    return max(0.05, 0.2 * (0.25 + 0.75 * progress_remaining))
+    
+# ==============================
 # Policy — réseau un peu plus grand
 # ==============================
 policy_kwargs = dict(
@@ -125,9 +134,9 @@ model = PPO(
     n_epochs=5,          # ↓ 10→5 : moins de passes sur mêmes données → KL reste basse
     gamma=0.99,
     gae_lambda=0.95,
-    clip_range=0.2,
+    clip_range=clip_schedule, # 0.2 -> 0.05 		# 0.2,
     clip_range_vf=None,
-    ent_coef=0.001,  # légère entropie pour éviter convergence prématurée
+    ent_coef=0.001, 
     vf_coef=0.5,
     max_grad_norm=0.5,
     target_kl=0.015,     # légèrement relevé : avec n_epochs=5 le drift est moindre

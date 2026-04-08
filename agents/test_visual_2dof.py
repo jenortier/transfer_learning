@@ -5,8 +5,9 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
 from envs.arm2dof_env import Arm2DoFEnv
 
-MODEL_PATH   = "models/ppo_reach_2dof/best_model.zip"
-VECNORM_PATH = "models/ppo_reach_2dof/vec_normalize.pkl"
+run_id = 1
+MODEL_PATH   = f"models/ppo_reach_2dof_{run_id}/best_model.zip"
+VECNORM_PATH = f"models/ppo_reach_2dof_{run_id}/vec_normalize.pkl"
 
 num_tests = 5
 max_steps = 100
@@ -36,7 +37,7 @@ for test_ep in range(num_tests):
         total_reward += float(reward[0])
 
         inner_env.render()
-        time.sleep(0.02)
+        time.sleep(0.01)
 
         if dones[0]:
             break

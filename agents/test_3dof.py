@@ -5,8 +5,9 @@ from stable_baselines3.common.monitor import Monitor
 from envs.arm3dof_env import Arm3DoFEnv
 
 # --- Configuration ---
-MODEL_PATH  = "models/ppo_reach_3dof/best_model.zip"   # best_model plutôt que final
-VECNORM_PATH = "models/ppo_reach_3dof/vec_normalize.pkl"
+run_id = 2
+MODEL_PATH  = f"models/ppo_reach_3dof_{run_id}/best_model.zip"   # best_model plutôt que final
+VECNORM_PATH = f"models/ppo_reach_3dof_{run_id}/vec_normalize.pkl"
 NUM_EPISODES = 2000
 MAX_STEPS    = 100
 

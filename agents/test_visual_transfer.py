@@ -1,43 +1,45 @@
 import time
 import numpy as np
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from pathlib import Path
+from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 from envs.arm3dof_env import Arm3DoFEnv
 
-run_id = 2
-MODEL_PATH   = f"models/ppo_reach_3dof_{run_id}/best_model.zip"
-VECNORM_PATH = f"models/ppo_reach_3dof_{run_id}/vec_normalize.pkl"
+# Import de la classe TransferPolicy
+from agents.transfer_reaching import TransferPolicy
+
+# Chemin vers le modèle de transfer learning sauvegardé
+TRANSFER_MODEL_DIR = "models/ppo_transfer_2to3_1"
 
 num_tests = 5
 max_steps = 100
 
-# --- Charger modèle + VecNormalize (indispensable) ---
-model = PPO.load(MODEL_PATH)
+# --- Charger le modèle de transfer learning ---
+print(f"Loading transfer model from: {TRANSFER_MODEL_DIR}")
+policy = TransferPolicy.load_from_config(TRANSFER_MODEL_DIR, device="cpu")
 
+# --- Créer l'environnement 3-DoF avec rendu visuel ---
 def make_env():
     return Monitor(Arm3DoFEnv(render_mode="human"))
 
 env = DummyVecEnv([make_env])
-env = VecNormalize.load(VECNORM_PATH, env)
-env.training   = False
-env.norm_reward = False
 
 # --- Accès à l'env interne pour render() et infos ---
 inner_env = env.envs[0].unwrapped
 
 for test_ep in range(num_tests):
-    obs = env.reset()
+    obs = env.reset()  # obs shape: (1, 10), raw
     total_reward = 0.0
     print(f"\nTest épisode {test_ep+1} : cible = {inner_env.target}")
 
     for step in range(max_steps):
-        action, _ = model.predict(obs, deterministic=True)
+        # Utiliser la politique de transfer learning
+        action = policy.predict(obs[0])  # obs[0] pour avoir shape (10,)
         obs, reward, dones, infos = env.step(action)
         total_reward += float(reward[0])
 
         inner_env.render()
-        time.sleep(0.01)
+        time.sleep(0.02)
 
         if dones[0]:
             break

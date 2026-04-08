@@ -1,17 +1,3 @@
-"""
-test_trajectories.py
-====================
-Visualise en parallèle un bras 2-DoF et un bras 3-DoF suivant la même
-trajectoire de reaching (générée par eq_trajectories.py avec les PPO).
-
-Fenêtre unique matplotlib avec deux sous-graphes côte à côte, steps alignés.
-Chaque bras utilise sa propre policy PPO + VecNormalize.
-La même séquence de cibles est injectée dans les deux environnements.
-
-Usage:
-    python3 -m agents.test_trajectories [--pair PAIR_IDX] [--delay SECONDS]
-"""
-
 import argparse
 import pickle
 import time
@@ -24,18 +10,18 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
 
-from envs.arm2dof_env import Arm2DoFEnv
-from envs.arm3dof_env import Arm3DoFEnv
+from envs.arm2dof_persistent_env import Arm2DoFPersistentEnv
+from envs.arm3dof_persistent_env import Arm3DoFPersistentEnv
 
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
-MODEL_2DOF   = "models/ppo_reach_2dof/best_model.zip"
-VECNORM_2DOF = "models/ppo_reach_2dof/vec_normalize.pkl"
-MODEL_3DOF   = "models/ppo_reach_3dof/best_model.zip"
-VECNORM_3DOF = "models/ppo_reach_3dof/vec_normalize.pkl"
+MODEL_2DOF   = "models/ppo_reach_2dof_1/best_model.zip"
+VECNORM_2DOF = "models/ppo_reach_2dof_1/vec_normalize.pkl"
+MODEL_3DOF   = "models/ppo_reach_3dof_2/best_model.zip"
+VECNORM_3DOF = "models/ppo_reach_3dof_2/vec_normalize.pkl"
 TRAJ_PATH    = "data/transfer_learning/trajectories.pkl"
 
 # Visual constants
@@ -108,25 +94,29 @@ def draw_2dof(ax, env, targets, target_idx, step_count, success):
     theta = np.linspace(0, 2 * np.pi, 200)
     ax.plot(np.cos(theta) * env.max_reach,
             np.sin(theta) * env.max_reach,
-            color="#333333", lw=0.6, ls="--", alpha=0.3)
+            color="#FFFFFF",
+            lw=0.6, ls="--", alpha=0.3)
 
     # Target trail
     for i, tgt in enumerate(targets):
-        if i < target_idx:
-            ax.plot(tgt[0], tgt[1], 'o', color=COL_PAST,   markersize=5, alpha=0.4)
-        elif i == target_idx:
-            ax.plot(tgt[0], tgt[1], '*', color=COL_TARGET, markersize=16,
+    	if i == target_idx:
+            ax.plot(tgt[0], tgt[1], 'o', color=COL_TARGET, markersize=16,
                     markeredgecolor="#000", markeredgewidth=0.5, zorder=5)
-        else:
-            ax.plot(tgt[0], tgt[1], 'o', color=COL_FUTURE, markersize=4, alpha=0.25)
+#        if i < target_idx:
+#            ax.plot(tgt[0], tgt[1], 'o', color=COL_PAST,   markersize=5, alpha=0.4)
+#        elif i == target_idx:
+#            ax.plot(tgt[0], tgt[1], '*', color=COL_TARGET, markersize=16,
+#                    markeredgecolor="#000", markeredgewidth=0.5, zorder=5)
+##        else:
+#            ax.plot(tgt[0], tgt[1], 'o', color=COL_FUTURE, markersize=4, alpha=0.25)
 
     # Arm links
     o, j1, eff = fk2(env)
     ax.plot([o[0],  j1[0]],  [o[1],  j1[1]],  '-', color=COL_LINK1, lw=6, solid_capstyle='round')
     ax.plot([j1[0], eff[0]], [j1[1], eff[1]], '-', color=COL_LINK2, lw=6, solid_capstyle='round')
     # Joint dots
-    ax.plot(*o,   'o', color="#222", markersize=7, zorder=6)
-    ax.plot(*j1,  'o', color="#222", markersize=6, zorder=6)
+#    ax.plot(*o,   'o', color="#222", markersize=7, zorder=6)
+#    ax.plot(*j1,  'o', color="#222", markersize=6, zorder=6)
     # Effector
     dist = np.linalg.norm(eff - env.target)
     ec   = COL_EFF_OK if success or dist < env.epsilon else COL_EFF
@@ -136,12 +126,12 @@ def draw_2dof(ax, env, targets, target_idx, step_count, success):
     ax.set_xlim(-2.3, 2.3)
     ax.set_ylim(-2.3, 2.3)
     ax.set_aspect("equal")
-    ax.set_facecolor("#111111")
+    ax.set_facecolor("white")
     ax.set_title(
         f"2-DoF  |  step {step_count:3d}  |  cible {target_idx + 1}/{len(targets)}\n"
         f"θ1={np.degrees(env.theta1):+.0f}°  θ2={np.degrees(env.theta2):+.0f}°  "
         f"d={dist:.3f} m",
-        color="white", fontsize=9, pad=6
+        color="black", fontsize=9, pad=6
     )
     ax.tick_params(colors="#555")
     for spine in ax.spines.values():
@@ -155,17 +145,20 @@ def draw_3dof(ax, env, targets, target_idx, step_count, success):
     theta = np.linspace(0, 2 * np.pi, 200)
     ax.plot(np.cos(theta) * env.max_reach,
             np.sin(theta) * env.max_reach,
-            color="#333333", lw=0.6, ls="--", alpha=0.3)
+            color="#FFFFFF", lw=0.6, ls="--", alpha=0.3)
 
     # Target trail
     for i, tgt in enumerate(targets):
-        if i < target_idx:
-            ax.plot(tgt[0], tgt[1], 'o', color=COL_PAST,   markersize=5, alpha=0.4)
-        elif i == target_idx:
-            ax.plot(tgt[0], tgt[1], '*', color=COL_TARGET, markersize=16,
+    	if i == target_idx:
+            ax.plot(tgt[0], tgt[1], 'o', color=COL_TARGET, markersize=16,
                     markeredgecolor="#000", markeredgewidth=0.5, zorder=5)
-        else:
-            ax.plot(tgt[0], tgt[1], 'o', color=COL_FUTURE, markersize=4, alpha=0.25)
+#        if i < target_idx:
+#            ax.plot(tgt[0], tgt[1], 'o', color=COL_PAST,   markersize=5, alpha=0.4)
+#        elif i == target_idx:
+#            ax.plot(tgt[0], tgt[1], '*', color=COL_TARGET, markersize=16,
+#                    markeredgecolor="#000", markeredgewidth=0.5, zorder=5)
+#        else:
+#            ax.plot(tgt[0], tgt[1], 'o', color=COL_FUTURE, markersize=4, alpha=0.25)
 
     # Arm links
     o, j1, j2, eff = fk3(env)
@@ -173,9 +166,9 @@ def draw_3dof(ax, env, targets, target_idx, step_count, success):
     ax.plot([j1[0], j2[0]], [j1[1], j2[1]], '-', color=COL_LINK2, lw=6, solid_capstyle='round')
     ax.plot([j2[0], eff[0]], [j2[1], eff[1]], '-', color=COL_LINK3, lw=6, solid_capstyle='round')
     # Joint dots
-    ax.plot(*o,   'o', color="#222", markersize=7, zorder=6)
-    ax.plot(*j1,  'o', color="#222", markersize=6, zorder=6)
-    ax.plot(*j2,  'o', color="#222", markersize=6, zorder=6)
+#    ax.plot(*o,   'o', color="#222", markersize=7, zorder=6)
+#    ax.plot(*j1,  'o', color="#222", markersize=6, zorder=6)
+#    ax.plot(*j2,  'o', color="#222", markersize=6, zorder=6)
     # Effector
     dist = np.linalg.norm(eff - env.target)
     ec   = COL_EFF_OK if success or dist < env.epsilon else COL_EFF
@@ -185,12 +178,12 @@ def draw_3dof(ax, env, targets, target_idx, step_count, success):
     ax.set_xlim(-2.3, 2.3)
     ax.set_ylim(-2.3, 2.3)
     ax.set_aspect("equal")
-    ax.set_facecolor("#111111")
+    ax.set_facecolor("white")
     ax.set_title(
         f"3-DoF  |  step {step_count:3d}  |  cible {target_idx + 1}/{len(targets)}\n"
         f"θ1={np.degrees(env.theta1):+.0f}°  θ2={np.degrees(env.theta2):+.0f}°  "
         f"θ3={np.degrees(env.theta3):+.0f}°  d={dist:.3f} m",
-        color="white", fontsize=9, pad=6
+        color="black", fontsize=9, pad=6
     )
     ax.tick_params(colors="#555")
     for spine in ax.spines.values():
@@ -203,7 +196,7 @@ def draw_3dof(ax, env, targets, target_idx, step_count, success):
 
 def main():
     parser = argparse.ArgumentParser(description="Parallel 2DoF / 3DoF trajectory visualisation")
-    parser.add_argument("--pair",  type=int, default=0,    help="Trajectory pair index to replay")
+    parser.add_argument("--pair",  type=int, default=1,    help="Trajectory pair index to replay")
     parser.add_argument("--delay", type=float, default=0.04, help="Seconds between frames")
     parser.add_argument("--steps_per_target", type=int, default=None,
                         help="Override steps per target (default: from trajectory metadata)")
@@ -236,8 +229,8 @@ def main():
 
     # ---- Load policies ----
     print("[1] Loading PPO policies...")
-    def make_2dof(): return Monitor(Arm2DoFEnv(render_mode=None))
-    def make_3dof(): return Monitor(Arm3DoFEnv(render_mode=None))
+    def make_2dof(): return Monitor(Arm2DoFPersistentEnv(render_mode=None))
+    def make_3dof(): return Monitor(Arm3DoFPersistentEnv(render_mode=None))
 
     model_2, vn_2, venv_2 = load_policy(MODEL_2DOF, VECNORM_2DOF, make_2dof)
     model_3, vn_3, venv_3 = load_policy(MODEL_3DOF, VECNORM_3DOF, make_3dof)
@@ -245,8 +238,8 @@ def main():
     print("  ✓ 3-DoF policy loaded")
 
     # ---- Create raw envs ----
-    env_2 = Arm2DoFEnv(render_mode=None)
-    env_3 = Arm3DoFEnv(render_mode=None)
+    env_2 = Arm2DoFPersistentEnv(render_mode="human")
+    env_3 = Arm3DoFPersistentEnv(render_mode="human")
     obs_2, _ = env_2.reset(seed=seed)
     obs_3, _ = env_3.reset(seed=seed)
 
@@ -257,13 +250,13 @@ def main():
     obs_3 = env_3._get_obs()
 
     # ---- Matplotlib setup ----
-    plt.style.use("dark_background")
+#    plt.style.use("dark_background")
     fig, (ax2, ax3) = plt.subplots(1, 2, figsize=(12, 6))
-    fig.patch.set_facecolor("#0d0d0d")
+#    fig.patch.set_facecolor("#0d0d0d")
     fig.suptitle(
         f"Trajectoire alignée 2-DoF ↔ 3-DoF  |  paire {pair_idx}  |  "
         f"source: {meta.get('source', '?')}",
-        color="white", fontsize=11, fontweight="bold"
+        color="black", fontsize=11, fontweight="bold"
     )
 
     # Legend patches

@@ -1,22 +1,7 @@
-"""
-Transfer Learning — Reaching Task
-===================================
-Apply the 2-DoF reaching policy to the 3-DoF environment via learned mappers.
-
-Full pipeline (per timestep):
-  1. obs_3dof              ← raw observation from env_3dof
-  2. obs_2dof_equiv        = state_mapper(obs_3dof)
-  3. obs_2dof_norm         = vec_norm_2dof.normalize_obs(obs_2dof_equiv)
-  4. action_2dof           = policy_2dof(obs_2dof_norm)   [deterministic]
-  5. action_3dof           = action_mapper(obs_3dof, action_2dof)  [context-aware]
-  6. obs_3dof, …           = env_3dof.step(action_3dof)
-
-No new learning — only inference through the pre-trained components.
-Output format matches test_2dof.py / test_3dof.py for easy comparison.
-"""
-
 import numpy as np
 import torch
+import pickle
+import time
 from pathlib import Path
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
@@ -78,6 +63,12 @@ class TransferPolicy:
         )
         self.action_mapper.eval()
 
+        # Stocker les chemins pour la sauvegarde
+        self.policy_2dof_path = policy_2dof_path
+        self.vecnorm_2dof_path = vecnorm_2dof_path
+        self.state_mapper_path = state_mapper_path
+        self.action_mapper_path = action_mapper_path
+
         print("[Transfer] All components loaded successfully")
         print(f"  policy_2dof    : {policy_2dof_path}")
         print(f"  vecnorm_2dof   : {vecnorm_2dof_path}")
@@ -115,6 +106,67 @@ class TransferPolicy:
         action_3dof = self.action_mapper(obs_t, a2_t).cpu().numpy()  # (1, 3)
 
         return action_3dof  # (1, 3)
+    
+    def save(self, save_dir: str):
+        """
+        Sauvegarde le modèle de transfer learning complet.
+        
+        Args:
+            save_dir: Répertoire où sauvegarder le modèle
+        """
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        # Créer un dictionnaire avec toutes les informations
+        transfer_config = {
+            'policy_2dof_path': self.policy_2dof_path,
+            'vecnorm_2dof_path': self.vecnorm_2dof_path,
+            'state_mapper_path': self.state_mapper_path,
+            'action_mapper_path': self.action_mapper_path,
+            'device': self.device,
+        }
+        
+        # Sauvegarder la configuration
+        config_path = save_path / "transfer_config.pkl"
+        with open(config_path, 'wb') as f:
+            pickle.dump(transfer_config, f)
+        
+        print(f"\n[Save] Transfer model configuration saved to: {save_path}")
+        print(f"  - transfer_config.pkl")
+        print(f"\nNote: Component files are already saved:")
+        print(f"  - {self.policy_2dof_path}")
+        print(f"  - {self.vecnorm_2dof_path}")
+        print(f"  - {self.state_mapper_path}")
+        print(f"  - {self.action_mapper_path}")
+    
+    @classmethod
+    def load_from_config(cls, save_dir: str, device: str = "cpu"):
+        """
+        Charge un modèle de transfer learning depuis sa configuration.
+        
+        Args:
+            save_dir: Répertoire contenant transfer_config.pkl
+            device: Device à utiliser (cpu/cuda)
+        
+        Returns:
+            TransferPolicy instance
+        """
+        save_path = Path(save_dir)
+        config_path = save_path / "transfer_config.pkl"
+        
+        if not config_path.exists():
+            raise FileNotFoundError(f"Configuration not found: {config_path}")
+        
+        with open(config_path, 'rb') as f:
+            config = pickle.load(f)
+        
+        return cls(
+            policy_2dof_path=config['policy_2dof_path'],
+            vecnorm_2dof_path=config['vecnorm_2dof_path'],
+            state_mapper_path=config['state_mapper_path'],
+            action_mapper_path=config['action_mapper_path'],
+            device=device,
+        )
 
 
 # ============================================================================
@@ -125,11 +177,18 @@ def main():
     # ----- Configuration -----
     DEVICE       = "cpu"
     NUM_EPISODES = 1000   # same order of magnitude as test_2dof / test_3dof
-
-    POLICY_2DOF_PATH  = "./models/ppo_reach_2dof/best_model.zip"
-    VECNORM_2DOF_PATH = "./models/ppo_reach_2dof/vec_normalize.pkl"
+    
+    run_id_2dof = 1
+    save_transfer_id = 1
+    
+    POLICY_2DOF_PATH  = f"./models/ppo_reach_2dof_{run_id_2dof}/best_model.zip"
+    VECNORM_2DOF_PATH = f"./models/ppo_reach_2dof_{run_id_2dof}/vec_normalize.pkl"
     STATE_MAPPER_PATH  = "./data/transfer_learning/state_mapper.pt"
     ACTION_MAPPER_PATH = "./data/transfer_learning/action_mapper.pt"
+    
+    # Répertoire de sauvegarde du modèle de transfer
+    TIMESTAMP = int(time.time())
+    SAVE_DIR = f"./models/ppo_transfer_2to3_{save_transfer_id}"
 
     # ----- Sanity checks -----
     for p in [POLICY_2DOF_PATH, VECNORM_2DOF_PATH, STATE_MAPPER_PATH, ACTION_MAPPER_PATH]:
@@ -137,9 +196,9 @@ def main():
             print(f"❌  File not found: {p}")
             return
 
-    print("\n" + "="*70)
+    print("\n" + "="*60)
     print("TRANSFER LEARNING TEST: 2-DoF Reaching → 3-DoF Environment")
-    print("="*70)
+    print("="*60)
 
     # ----- Load transfer policy -----
     print("\n[1] Loading transfer components...")
@@ -189,11 +248,13 @@ def main():
 
     # ----- Results (same format as test_2dof.py / test_3dof.py) -----
     rate = 100.0 * successes / NUM_EPISODES
-    print("\n" + "="*45)
+    print("\n" + "="*70)
+    print("RÉSULTATS DU TRANSFER LEARNING")
+    print("="*70)
     print(f"  Épisodes testés       : {NUM_EPISODES}")
     print(f"  Réussites             : {successes}")
     print(f"  Taux de réussite      : {rate:.1f}%")
-    print("-"*45)
+    print("-"*70)
     if steps_on_success:
         print(f"  Steps moyens (succès) : {np.mean(steps_on_success):.1f}")
         print(f"  Steps min / max       : {np.min(steps_on_success)} / {np.max(steps_on_success)}")
@@ -203,7 +264,12 @@ def main():
         print(f"  Distance moy (échec)  : {np.mean(final_dist_failure):.4f} m")
         print(f"  Distance min / max    : "
               f"{np.min(final_dist_failure):.4f} / {np.max(final_dist_failure):.4f} m")
-    print("="*45 + "\n")
+    print("="*70)
+
+    # ----- Sauvegarder le modèle de transfer -----
+    print(f"\n[4] Saving transfer model...")
+    policy.save(SAVE_DIR)
+    print(f"✓ Transfer model configuration saved to: {SAVE_DIR}")
 
     env.close()
 
