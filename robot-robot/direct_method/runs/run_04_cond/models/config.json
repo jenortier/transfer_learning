@@ -1,0 +1,28 @@
+{
+  "model": "ActionMapperConditionedMLP",
+  "hidden": 256,
+  "nq_r1": 2,
+  "nq_r2": 3,
+  "weights": {
+    "w_v": 1.0,
+    "w_angle": 0.5,
+    "w_speed": 0.25,
+    "w_joint": 0.1,
+    "w_reg": 0.0001
+  },
+  "speed_eps": 0.05,
+  "seed": 0,
+  "lr": 0.001,
+  "batch_size": 256,
+  "epochs_max": 150,
+  "best": {
+    "2to3": {
+      "epoch": 147,
+      "val_cart": 0.0006791117230955607
+    },
+    "3to2": {
+      "epoch": 121,
+      "val_cart": 0.007621014299683082
+    }
+  }
+}

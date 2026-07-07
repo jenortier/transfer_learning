@@ -1,0 +1,19 @@
+{
+  "model": "StateMapperMLP",
+  "hidden": 256,
+  "state_dim_r1": 6,
+  "state_dim_r2": 8,
+  "weights": {
+    "w_fk": 0.5,
+    "w_vel": 0.25,
+    "w_cycle": 0.1
+  },
+  "seed": 0,
+  "lr": 0.001,
+  "batch_size": 256,
+  "epochs_max": 150,
+  "best": {
+    "epoch": 150,
+    "val_total": 0.005650249184467471
+  }
+}

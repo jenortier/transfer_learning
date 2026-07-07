@@ -1,0 +1,24 @@
+source .venv/bin/activate 
+
+
+# 1. Entraîner le mapper d'états (positions + vitesses articulaires)
+python3 -m direct_method.train_states_mapper
+
+# 2. Entraîner le mapper d'actions (couples/forces articulaires)  
+python3 -m direct_method.train_actions_mapper
+python3 -m direct_method.train_actions_mapper_2
+
+# 3. (Optionnel) Visualiser les données
+python3 -m direct_method.print_dataset
+
+
+python3 -m direct_method.visualize_state_mapper 
+python3 -m direct_method.visualize_velocity_mapper
+python3 -m direct_method.visualize_velocity_mapper_2 --run-id run_03
+
+
+# transfer 3dof to 2dof
+python3 -m direct_method.transfer_pushball_3to2dof
+
+# transfer 2dof to 3dof
+python3 -m test_transfer_2to3dof
