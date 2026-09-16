@@ -41,7 +41,13 @@ def main():
         device=DEVICE,
     )
 
-    trainer.train(data, epochs=100, batch_size=100, lr=5e-4)
+    trainer.train(
+        data,
+        epochs=100,
+        batch_size=100,
+        lr=5e-4,
+        log_dir=str(DATA_DIR / "tensorboard"),
+    )
     trainer.save(str(DATA_DIR), run_id="base")
 
     print(f"\n  VAE weights saved → {DATA_DIR}/base_{{2,3}}dof.pt")

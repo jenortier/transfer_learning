@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 from typing import Dict, Tuple, Optional
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 torch.set_num_threads(8)
@@ -23,7 +24,7 @@ ARM_OBS_2DOF = 6
 ARM_OBS_3DOF = 8
 
 # À fixer après latent_dim_search.py
-DEFAULT_LATENT_DIM = 5  # À remplacer par la valeur trouvée
+DEFAULT_LATENT_DIM = 4 ###2 ##5  # À remplacer par la valeur trouvée
 DEFAULT_HIDDEN_DIM = 256
 
 
@@ -149,7 +150,8 @@ class BasesVAETrainer:
         self.lmbda = 1.0 / 3.0
 
     def train(self, trajectories: Dict, epochs: int = 100,
-              batch_size: int = 100, lr: float = 5e-4):
+              batch_size: int = 100, lr: float = 5e-4,
+              log_dir: Optional[str] = None):
         """
         Entraîne les deux VAE sur les arm_states uniquement.
         """
@@ -173,6 +175,7 @@ class BasesVAETrainer:
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=epochs, eta_min=1e-5
         )
+        writer = SummaryWriter(log_dir) if log_dir is not None else None
 
         pbar = tqdm(range(epochs), desc="Training VAE Bases")
 
@@ -181,7 +184,9 @@ class BasesVAETrainer:
             self.base_3dof.train()
 
             perm = torch.randperm(len(s2))
-            total_loss, n_b = 0.0, 0
+            loss_sums = {"total": 0.0, "reconstruction": 0.0,
+                         "kl": 0.0, "similarity": 0.0, "cross": 0.0}
+            n_b = 0
 
             for i in range(0, len(s2), batch_size):
                 idx = perm[i:i + batch_size]
@@ -220,11 +225,25 @@ class BasesVAETrainer:
                 loss.backward()
                 optimizer.step()
 
-                total_loss += loss.item()
+                loss_sums["total"] += loss.item()
+                loss_sums["reconstruction"] += loss_recon.item()
+                loss_sums["kl"] += loss_kl.item()
+                loss_sums["similarity"] += loss_sim.item()
+                loss_sums["cross"] += loss_cross.item()
                 n_b += 1
 
             scheduler.step()
-            pbar.set_postfix({'loss': f'{total_loss/n_b:.4f}'})
+            epoch_losses = {name: value / n_b for name, value in loss_sums.items()}
+            pbar.set_postfix({'loss': f'{epoch_losses["total"]:.4f}'})
+
+            if writer is not None:
+                for name, value in epoch_losses.items():
+                    writer.add_scalar(f"loss/{name}", value, epoch)
+                writer.add_scalar("training/learning_rate", scheduler.get_last_lr()[0], epoch)
+                writer.flush()
+
+        if writer is not None:
+            writer.close()
 
         print("\n  Training complete")
 

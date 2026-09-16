@@ -1,5 +1,5 @@
 """
-Phase 3: Entraînement UNN (PPO) dans l'espace latent partagé.
+Phase 3: Entraînement LSUNN (PPO) dans l'espace latent partagé.
 Bases VAE gelées pendant l'entraînement.
 """
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from envs.env_pushball_2dof import PushBallEnv_2dof
 from envs.env_pushball_3dof import PushBallEnv_3dof
 from lsunn.bases_vae import BaseVAE, DEFAULT_LATENT_DIM, DEFAULT_HIDDEN_DIM
-from lsunn.unn_policy import LatentEnv
+from lsunn.lsunn_policy import LatentEnv
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DATA_DIR = Path("./data/LSUNN")
@@ -61,8 +61,8 @@ def train_latent_policy(
     save_dir: Path,
     device: str = "cpu",
     n_envs: int = 8,
-    total_timesteps: int = 5_000_000,
-    run_id: str = "unn_2dof",
+    total_timesteps: int = 16_000_000, ##5_000_000,
+    run_id: str = "lsunn_2dof",
 ) -> tuple[PPO, VecNormalize]:
     """
     Entraîne une politique PPO sur l'environnement latent.
@@ -98,7 +98,7 @@ def train_latent_policy(
     return ppo, train_env
 
 
-def train_unn_policies(
+def train_lsunn_policies(
     base_2dof: BaseVAE,
     base_3dof: BaseVAE,
     device: str = "cpu",
@@ -106,33 +106,33 @@ def train_unn_policies(
     n_envs: int = 8,
 ) -> tuple:
     """
-    Entraîne les politiques UNN pour 2DoF et 3DoF.
+    Entraîne les politiques LSUNN pour 2DoF et 3DoF.
     Les bases VAE sont gelées.
     """
     print("\n" + "=" * 60)
-    print("Phase 3: Training UNN policies (VAE bases frozen)")
+    print("Phase 3: Training LSUNN policies (VAE bases frozen)")
     print("=" * 60)
     
-    print("\n  Training 2DoF UNN policy...")
+    print("\n  Training 2DoF LSUNN policy...")
     ppo_2dof, vec_norm_2dof = train_latent_policy(
         PushBallEnv_2dof,
         base_2dof,
-        DATA_DIR / "unn_2dof",
+        DATA_DIR / "lsunn_2dof",
         device,
         n_envs,
         total_timesteps // 2,
-        "unn_2dof",
+        "lsunn_2dof",
     )
     
-    print("\n  Training 3DoF UNN policy...")
+    print("\n  Training 3DoF LSUNN policy...")
     ppo_3dof, vec_norm_3dof = train_latent_policy(
         PushBallEnv_3dof,
         base_3dof,
-        DATA_DIR / "unn_3dof",
+        DATA_DIR / "lsunn_3dof",
         device,
         n_envs,
         total_timesteps // 2,
-        "unn_3dof",
+        "lsunn_3dof",
     )
     
     return ppo_2dof, vec_norm_2dof, ppo_3dof, vec_norm_3dof
@@ -152,9 +152,9 @@ def main():
     base_3dof.load_state_dict(torch.load(DATA_DIR / "base_3dof.pt", map_location=DEVICE))
     
     # Entraînement
-    train_unn_policies(base_2dof, base_3dof, device=DEVICE)
+    train_lsunn_policies(base_2dof, base_3dof, device=DEVICE)
     
-    print(f"\n  UNN policies saved → {DATA_DIR}/unn_{{2,3}}dof/")
+    print(f"\n  LSUNN policies saved → {DATA_DIR}/lsunn_{{2,3}}dof/")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ class ReachingEnv_2dof(Arm2DoF):
     ALPHA       = 10.0
     LAMBDA_CTRL = 0.05
     R_SUCCESS   = 5.0
-    EPSILON     = 0.05
+    EPSILON     = 0.05      # 5cm
     DELTA_MAX   = 0.1
 
     def __init__(self, render_mode=None,
@@ -78,7 +78,7 @@ class ReachingEnv_2dof(Arm2DoF):
         reward  = self.alpha * progress / self.max_reach		# ALPHA       = 10.0
         reward -= self.lambda_ctrl * float(np.dot(action, action))	# LAMBDA_CTRL = 0.05
 
-        success = dist < self.epsilon					# EPSILON     = 0.05
+        success = dist < self.epsilon					# EPSILON     = 0.05  -> 5cm
         if success:
             reward += self.r_success					# R_SUCCESS   = 5.0
 

@@ -6,7 +6,7 @@ from gymnasium import spaces
 
 from envs.arm_3dof import Arm3DoF
 from direct_method.mapper_models import (
-    StateMapperMLP, ActionMapperMLP,
+    StateMapperMLP, ActionMapperConditionedMLP,
     ARM_OBS_2DOF, ARM_OBS_3DOF, MAX_REACH,
 )
 
@@ -74,22 +74,22 @@ def _velocity_similarity(va: np.ndarray, vb: np.ndarray) -> float:
 # ── Mapper loading helpers ────────────────────────────────────────────────────
 
 def _load_state_mapper(in_dim: int, out_dim: int,
-                        path, device: str = 'cpu'):
+                         path, device: str = 'cpu', hidden: int = 256):
     """Return a StateMapperMLP loaded from *path*, or None if unavailable."""
     if path is None or not os.path.exists(path):
         return None
-    m = StateMapperMLP(in_dim, out_dim)
+    m = StateMapperMLP(in_dim, out_dim, hidden=hidden)
     m.load_state_dict(torch.load(path, map_location=device))
     m.eval()
     return m
 
 
-def _load_action_mapper(state_dim: int, act_in_dim: int, act_out_dim: int,
+def _load_action_mapper(nq_src: int, nq_tgt: int,
                          path, device: str = 'cpu'):
-    """Return an ActionMapperMLP loaded from *path*, or None if unavailable."""
+    """Return an ActionMapperConditionedMLP loaded from *path*, or None if unavailable."""
     if path is None or not os.path.exists(path):
         return None
-    m = ActionMapperMLP(state_dim, act_in_dim, act_out_dim)
+    m = ActionMapperConditionedMLP(nq_src, nq_tgt)
     m.load_state_dict(torch.load(path, map_location=device))
     m.eval()
     return m
@@ -159,17 +159,17 @@ class PushBallEnv_3dof(Arm3DoF):
 
         # ── Load mapper networks ─────────────────────────────────────────────
         # State mappers:  s3 (8D) ↔ s2 (6D)
-        # Action mapper 3→2:  AM(state=s2, act_in=a3) → a2
-        # Action mapper 2→3:  AM(state=s3, act_in=a2) → a3
+        # Action mapper 3→2:  AM(dtheta_3, theta_3, theta_2) → dtheta_2
+        # Action mapper 2→3:  AM(dtheta_2, theta_2, theta_3) → dtheta_3
         device = 'cpu'
         self._sm_3to2 = _load_state_mapper(
-            ARM_OBS_3DOF, ARM_OBS_2DOF, state_mapper_3to2_path, device)
+            ARM_OBS_3DOF, ARM_OBS_2DOF, state_mapper_3to2_path, device, hidden=256)
         self._sm_2to3 = _load_state_mapper(
-            ARM_OBS_2DOF, ARM_OBS_3DOF, state_mapper_2to3_path, device)
+            ARM_OBS_2DOF, ARM_OBS_3DOF, state_mapper_2to3_path, device, hidden=256)
         self._am_3to2 = _load_action_mapper(
-            ARM_OBS_2DOF, 3, 2, action_mapper_3to2_path, device)
+            3, 2, action_mapper_3to2_path, device)
         self._am_2to3 = _load_action_mapper(
-            ARM_OBS_3DOF, 2, 3, action_mapper_2to3_path, device)
+            2, 3, action_mapper_2to3_path, device)
 
         self._mappers_ready = all(m is not None for m in [
             self._sm_3to2, self._sm_2to3,
@@ -177,8 +177,9 @@ class PushBallEnv_3dof(Arm3DoF):
         ])
         if not self._mappers_ready:
             missing = [name for name, m in zip(
-                ['SM_3→2', 'SM_2→3', 'AM_3→2', 'AM_2→3'],
-                [self._sm_3to2, self._sm_2to3, self._am_3to2, self._am_2to3],
+                ['SM_3to2', 'SM_2to3', 'AM_3to2', 'AM_2to3'],
+                [self._sm_3to2, self._sm_2to3,
+                 self._am_3to2, self._am_2to3],
             ) if m is None]
             print(f"[PushBallEnv_3dof] Reconstruction reward DISABLED "
                   f"(missing mappers: {missing})")
@@ -245,9 +246,15 @@ class PushBallEnv_3dof(Arm3DoF):
         s2       = self._sm_3to2(s3)
         s3_recon = self._sm_2to3(s2)
 
-        # Action round-trip: 3 → 2 → 3  (action mapper uses target-domain state)
-        a2       = self._am_3to2(s2,       a3)
-        a3_recon = self._am_2to3(s3_recon, a2)
+        # Action round-trip: 3 → 2 → 3  (conditioned action mappers)
+        # AM_3to2(dtheta_3, theta_3, theta_2) -> dtheta_2
+        # AM_2to3(dtheta_2, theta_2, theta_3) -> dtheta_3
+        theta_3 = s3[:, :3]           # (1, 3)
+        theta_2 = s2[:, :2]           # (1, 2)
+        theta_3_recon = s3_recon[:, :3]  # (1, 3)
+
+        a2       = self._am_3to2(a3, theta_3, theta_2)
+        a3_recon = self._am_2to3(a2, theta_2, theta_3_recon)
 
         s3_recon_np = s3_recon.squeeze(0).cpu().numpy()
         a3_recon_np = a3_recon.squeeze(0).cpu().numpy()

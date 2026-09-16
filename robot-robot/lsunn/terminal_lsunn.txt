@@ -5,33 +5,33 @@ source .venv/bin/activate  # Linux/Mac
 
 
 # VÉRIFICATION DES IMPORTS (optionnel)
-python3 -c "from lsunn.bases_vae import BaseVAE; from lsunn.unn_policy import UNNPolicy; from lsunn.kinematics_ik import ik_2dof; print('✅ All imports OK')"
+python3 -c "from lsunn.bases_vae import BaseVAE; from lsunn.lsunn_policy import UNNPolicy; from lsunn.kinematics_ik import ik_2dof; print('✅ All imports OK')"
 
 
 # PHASE 1: GÉNÉRATION DES TRAJECTOIRES IK (40 Hz)
-python3 -m lsunn.train.trajectories
+python -m lsunn.train.trajectories
 # Sortie: ./data/LSUNN/trajectories.pkl
 
 
 # PHASE 1bis: RECHERCHE DIMENSION LATENTE (optionnel)
-python3 -m lsunn.train.latent_dim_search
+python -m lsunn.train.latent_dim_search --out latent_dim_search_22
 # Sortie: latent_dim_search.png + recommandation dans la console
 # → Mettre à jour DEFAULT_LATENT_DIM dans bases_vae.py
 
 
 # PHASE 2: ENTRAÎNEMENT DES VAE (α=1.0, β=0.00015, δ=2/3, λ=1/3)
-python3 -m lsunn.train.train_vae
+python -m lsunn.train.train_vae
 # Sortie: ./data/LSUNN/base_2dof.pt, ./data/LSUNN/base_3dof.pt
 
 
-# PHASE 3: ENTRAÎNEMENT UNN (PPO) - BASES GELÉES
-python3 -m lsunn.train.train_ppo
-# Sortie: ./data/LSUNN/unn_2dof/policy.zip, ./data/LSUNN/unn_3dof/policy.zip
-#        ./data/LSUNN/unn_2dof/vec_normalize.pkl, ./data/LSUNN/unn_3dof/vec_normalize.pkl
+# PHASE 3: ENTRAÎNEMENT LSUNN (PPO) - BASES GELÉES
+python -m lsunn.train.train_ppo
+# Sortie: ./data/LSUNN/lsunn_2dof/policy.zip, ./data/LSUNN/lsunn_3dof/policy.zip
+#        ./data/LSUNN/lsunn_2dof/vec_normalize.pkl, ./data/LSUNN/lsunn_3dof/vec_normalize.pkl
 
 
 # PHASE 4: TESTS DE TRANSFERT ZERO-SHOT
-python3 -m lsunn.train.train_joint_transfer
+#python -m lsunn.train.train_joint_transfer
 # Sortie: Résultats des transferts 2→3 et 3→2
 
 
@@ -39,5 +39,11 @@ python3 -m lsunn.train.train_joint_transfer
 #tensorboard --logdir data/LSUNN
 
 
-# EXÉCUTION DES TESTS UNITAIRE (optionnel)
-#python3 -m lsunn.tests.transfer_test
+# test
+python -m lsunn.tests.test_lsunn_pushball_2dof
+python -m lsunn.tests.test_lsunn_pushball_3dof
+
+# transfer
+python -m lsunn.tests.transfer_pushball_2to3dof
+python -m lsunn.tests.transfer_pushball_3to2dof
+

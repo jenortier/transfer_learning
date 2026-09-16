@@ -37,7 +37,7 @@ def main():
 
     env = DummyVecEnv([lambda: Monitor(PushBallEnv_2dof(render_mode=None, max_steps=150))])
 
-    N_EPISODES = 1000
+    N_EPISODES = 20000
     successes  = 0
     steps_ok   = []
     dist_fail  = []

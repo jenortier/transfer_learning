@@ -20,7 +20,7 @@ from unn.unn_policy import UNNPolicy
 # --- Configuration ---
 POLICY_DIR   = "./data/UNN/unn_pushball_2dof"
 POLICY_NAME  = "final"
-NUM_EPISODES = 2000
+NUM_EPISODES = 20000
 MAX_STEPS    = 150
 DEVICE       = "cpu"
 

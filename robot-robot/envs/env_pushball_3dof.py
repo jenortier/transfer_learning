@@ -100,8 +100,9 @@ class PushBallEnv_3dof(Arm3DoF):
         # --- Distances ---
         dist_ball_target = float(np.linalg.norm(self.ball - self.target))
         dist_eff_ball    = float(np.linalg.norm(self.ball - eff))
-        if dist_eff_ball < 0.25:
-            dist_eff_ball = 0.1
+        
+        ##if dist_eff_ball < 0.25:
+        ##    dist_eff_ball = 0.1
 
         # --- Alignement ---
         v_eb = self.ball - eff

@@ -39,7 +39,7 @@ def main():
 
     env = DummyVecEnv([lambda: Monitor(PushBallEnv_3dof(render_mode=None, max_steps=150))])
 
-    N_EPISODES = 1000
+    N_EPISODES = 20000
     successes  = 0
 
     for ep in range(N_EPISODES):
