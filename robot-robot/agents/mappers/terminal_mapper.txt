@@ -1,0 +1,13 @@
+# activate venv
+source .venv/bin/activate
+
+
+# trajectories generation
+python -m agents.mappers.generate_aligned_trajectories
+
+# train mappers (--epoch 300)
+python -m agents.mappers.train_mapper
+python -m agents.mappers.train_mapper --residual
+
+# test
+python -m agents.mappers.eval_mapper

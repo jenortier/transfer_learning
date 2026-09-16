@@ -10,9 +10,9 @@ MODEL_ROOT = ROOT / "data" / "models"
 
 # --- Configuration ---
 run_id = 1
-MODEL_PATH  = MODEL_ROOT / f"ppo_pushball_2dof_{run_id}" / "best_model.zip"
+MODEL_PATH  = MODEL_ROOT / f"ppo_pushball_2dof_{run_id}" / "ppo_pushball_final.zip" #"best_model.zip" 
 VECNORM_PATH = MODEL_ROOT / f"ppo_pushball_2dof_{run_id}" / "vec_normalize.pkl"
-NUM_EPISODES = 2000
+NUM_EPISODES = 20000
 MAX_STEPS    = 150
 
 # --- Charger le modèle ---

@@ -1,22 +1,18 @@
 import numpy as np
 from pathlib import Path
-import torch
-torch.set_num_threads(1)
-
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
-from envs.env_pushball_3dof import PushBallEnv_3dof
+from envs.env_pushball_2dof import PushBallEnv_2dof
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "data" / "models").exists())
 MODEL_ROOT = ROOT / "data" / "models"
 
 # --- Configuration ---
-run_id = 1
-MODEL_PATH   = MODEL_ROOT / f"ppo_pushball_3dof_{run_id}" / "ppo_pushball_final.zip" #"best_model.zip"
-VECNORM_PATH = MODEL_ROOT / f"ppo_pushball_3dof_{run_id}" / "vec_normalize.pkl"
-
-NUM_EPISODES = 20000
+run_id = 3 ##2
+MODEL_PATH  = MODEL_ROOT / f"ppo_pushball_2dof_rec_{run_id}" / "ppo_pushball_final.zip" #"best_model.zip" 
+VECNORM_PATH = MODEL_ROOT / f"ppo_pushball_2dof_rec_{run_id}" / "vec_normalize.pkl"
+NUM_EPISODES = 500
 MAX_STEPS    = 150
 
 # --- Charger le modèle ---
@@ -24,7 +20,7 @@ model = PPO.load(MODEL_PATH, custom_objects={"learning_rate": 0.0003, "lr_schedu
 
 # --- Créer l'environnement AVEC VecNormalize (indispensable !) ---
 def make_env():
-    return Monitor(PushBallEnv_3dof(render_mode=None))
+    return Monitor(PushBallEnv_2dof(render_mode=None))
 
 env = DummyVecEnv([make_env])
 env = VecNormalize.load(VECNORM_PATH, env)

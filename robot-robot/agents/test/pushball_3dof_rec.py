@@ -12,11 +12,11 @@ ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "
 MODEL_ROOT = ROOT / "data" / "models"
 
 # --- Configuration ---
-run_id = 1
-MODEL_PATH   = MODEL_ROOT / f"ppo_pushball_3dof_{run_id}" / "ppo_pushball_final.zip" #"best_model.zip"
-VECNORM_PATH = MODEL_ROOT / f"ppo_pushball_3dof_{run_id}" / "vec_normalize.pkl"
+run_id = 3 ##2
+MODEL_PATH   = MODEL_ROOT / f"ppo_pushball_3dof_rec_{run_id}" / "ppo_pushball_final.zip" #"best_model.zip"
+VECNORM_PATH = MODEL_ROOT / f"ppo_pushball_3dof_rec_{run_id}" / "vec_normalize.pkl"
 
-NUM_EPISODES = 20000
+NUM_EPISODES = 500
 MAX_STEPS    = 150
 
 # --- Charger le modèle ---

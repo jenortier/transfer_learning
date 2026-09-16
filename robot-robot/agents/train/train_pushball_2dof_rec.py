@@ -51,11 +51,11 @@ if __name__ == "__main__":
                          help="Checkpoint de l'action mapper 3DoF → 2DoF "
                               "(état=6D, action_in=3D, action_out=2D).")
     """
-
-    #--state_mapper_3to2 ./direct_method/runs/run_01/models/state_mapper_r2_to_r1.pt 
-    #--state_mapper_2to3 ./direct_method/runs/run_01/models/state_mapper_r1_to_r2.pt 
-    #--action_mapper_3to2 ./direct_method/runs/run_02/models/action_mapper_r2_to_r1.pt 
-    #--action_mapper_2to3 ./direct_method/runs/run_02/models/action_mapper_r1_to_r2.pt
+ 
+    # --state_mapper_3to2 ./direct_method/runs/run_03_kin/models/state_mapper_r2_to_r1.pt 
+    # --state_mapper_2to3 ./direct_method/runs/run_03_kin/models/state_mapper_r1_to_r2.pt 
+    # --action_mapper_3to2 ./direct_method/runs/run_04_cond/models/action_mapper_3to2.pt 
+    # --action_mapper_2to3 ./direct_method/runs/run_04_cond/models/action_mapper_2to3.pt
     parser.add_argument('--state_mapper_2to3', type=str,
                          default='./direct_method/runs/run_01/models/state_mapper_r1_to_r2.pt',
                          help="Checkpoint du state mapper 2DoF → 3DoF (6→8).")
@@ -90,13 +90,14 @@ if __name__ == "__main__":
     # CPU / Threads
     # ==============================
     torch.set_num_threads(16)
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     # ==============================
     # Hyperparamètres
     # ==============================
     total_batch = 16384
-    n_envs = 64
-    TOTAL_TIMESTEPS = 150_000_000
+    n_envs = 8 ##64
+    TOTAL_TIMESTEPS = 15_000_000 ##150_000_000
 
     checkpoint_every = (
         args.checkpoint_every
@@ -311,6 +312,7 @@ if __name__ == "__main__":
             policy_kwargs=policy_kwargs,
             tensorboard_log=tensorboard_log_dir,
             verbose=1,
+            device=DEVICE
         )
 
         # ==============================

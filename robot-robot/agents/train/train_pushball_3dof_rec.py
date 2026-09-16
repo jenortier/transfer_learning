@@ -88,13 +88,14 @@ if __name__ == "__main__":
     # CPU / Threads
     # ==============================
     torch.set_num_threads(16)
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     # ==============================
     # Hyperparamètres
     # ==============================
     total_batch = 16384
-    n_envs = 64                # comme 2DoF
-    TOTAL_TIMESTEPS = 300_000_000  # comme 2DoF
+    n_envs = 8 ##64 
+    TOTAL_TIMESTEPS = 15_000_000 ##300_000_000 
 
     checkpoint_every = (
         args.checkpoint_every
@@ -299,6 +300,7 @@ if __name__ == "__main__":
             policy_kwargs=policy_kwargs,
             tensorboard_log=tensorboard_log_dir,
             verbose=1,
+            device=DEVICE
         )
 
         # ==============================

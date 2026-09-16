@@ -12,7 +12,7 @@ MODEL_ROOT = ROOT / "data" / "models"
 run_id = 1
 MODEL_PATH  = MODEL_ROOT / f"ppo_reach_2dof_{run_id}" / "best_model.zip"
 VECNORM_PATH = MODEL_ROOT / f"ppo_reach_2dof_{run_id}" / "vec_normalize.pkl"
-NUM_EPISODES = 2000
+NUM_EPISODES = 20000
 MAX_STEPS    = 100
 
 # --- Charger le modèle ---

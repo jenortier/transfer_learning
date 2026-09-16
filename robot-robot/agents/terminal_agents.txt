@@ -34,6 +34,13 @@ python3 -m agents.train.train_pushball_3dof
 python3 -m agents.train.train_pushball_2dof_rec
 python3 -m agents.train.train_pushball_3dof_rec
 
+python -m agents.train.train_pushball_2dof_rec --run_id 2 --state_mapper_3to2 ./direct_method/runs/run_03_kin/models/state_mapper_r2_to_r1.pt --state_mapper_2to3 ./direct_method/runs/run_03_kin/models/state_mapper_r1_to_r2.pt --action_mapper_3to2 ./direct_method/runs/run_04_cond/models/action_mapper_3to2.pt --action_mapper_2to3 ./direct_method/runs/run_04_cond/models/action_mapper_2to3.pt
+python -m agents.train.train_pushball_3dof_rec --run_id 2 --state_mapper_3to2 ./direct_method/runs/run_03_kin/models/state_mapper_r2_to_r1.pt --state_mapper_2to3 ./direct_method/runs/run_03_kin/models/state_mapper_r1_to_r2.pt --action_mapper_3to2 ./direct_method/runs/run_04_cond/models/action_mapper_3to2.pt --action_mapper_2to3 ./direct_method/runs/run_04_cond/models/action_mapper_2to3.pt
+
+python -m agents.train.train_pushball_2dof_rec --run_id 3 --state_mapper_3to2 ./direct_method/runs/run_03_kin/models/state_mapper_r2_to_r1.pt --state_mapper_2to3 ./direct_method/runs/run_03_kin/models/state_mapper_r1_to_r2.pt --action_mapper_3to2 ./direct_method/runs/run_05_cond/models/action_mapper_3to2.pt --action_mapper_2to3 ./direct_method/runs/run_05_cond/models/action_mapper_2to3.pt
+python -m agents.train.train_pushball_3dof_rec --run_id 3 --state_mapper_3to2 ./direct_method/runs/run_03_kin/models/state_mapper_r2_to_r1.pt --state_mapper_2to3 ./direct_method/runs/run_03_kin/models/state_mapper_r1_to_r2.pt --action_mapper_3to2 ./direct_method/runs/run_05_cond/models/action_mapper_3to2.pt --action_mapper_2to3 ./direct_method/runs/run_05_cond/models/action_mapper_2to3.pt
+
+
 
 
 ## TASKS ##
@@ -43,6 +50,8 @@ python3 -m agents.test.reaching_2dof
 python3 -m agents.test.reaching_3dof
 python3 -m agents.test.pushball_2dof
 python3 -m agents.test.pushball_3dof
+python -m agents.test.pushball_2dof_rec
+python -m agents.test.pushball_3dof_rec
 
 # record runs
 python3 -m agents.record.runs_reach_2dof
