@@ -11,9 +11,9 @@
   "seed": 0,
   "lr": 0.001,
   "batch_size": 256,
-  "epochs_max": 150,
+  "epochs_max": 100,
   "best": {
-    "epoch": 150,
-    "val_total": 0.005650249184467471
+    "epoch": 99,
+    "val_total": 0.005614320693824153
   }
 }

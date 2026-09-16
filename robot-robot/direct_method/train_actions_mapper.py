@@ -31,6 +31,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from direct_method.dataset import TrajectoriesTrainingActionDataset, block_split
@@ -49,12 +50,12 @@ HIDDEN_DIM = 256
 PATH_R1_TRAJ = f"direct_method/trajectories/{R1_NAME}.txt"
 PATH_R2_TRAJ = f"direct_method/trajectories/{R2_NAME}.txt"
 
-NUM_EPOCHS = int(os.environ.get("DM_EPOCHS", 150))   # DM_EPOCHS=5 pour un smoke test
+NUM_EPOCHS = int(os.environ.get("DM_EPOCHS", 300))   # DM_EPOCHS=5 pour un smoke test
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 256
 SEED = 0
 PATIENCE = 15          # early stopping sur la loss cartésienne de validation
-RUN_ID = os.environ.get("DM_RUN_ID", "run_04_cond")
+RUN_ID = os.environ.get("DM_RUN_ID", "run_05_cond")
 
 # Poids de la loss (la partie cartésienne domine volontairement)
 W_V = 1.0        # Huber sur le vecteur vitesse effecteur
@@ -72,6 +73,7 @@ RUN_DIR = os.path.join("direct_method/runs", RUN_ID)
 MODEL_DIR = os.path.join(RUN_DIR, "models")
 LOG_DIR = os.path.join(RUN_DIR, "logs")
 PLOT_DIR = os.path.join(RUN_DIR, "plots")
+TENSORBOARD_DIR = os.path.join(RUN_DIR, "tensorboard")
 
 EFF_VEL = {2: eff_vel_2dof, 3: eff_vel_3dof}
 
@@ -150,13 +152,14 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
     np.random.seed(SEED)
 
-    for d in (MODEL_DIR, LOG_DIR, PLOT_DIR):
+    for d in (MODEL_DIR, LOG_DIR, PLOT_DIR, TENSORBOARD_DIR):
         os.makedirs(d, exist_ok=True)
 
     full_dataset = TrajectoriesTrainingActionDataset(
         PATH_R1_TRAJ, PATH_R2_TRAJ, nq_r1=NQ_R1, nq_r2=NQ_R2)
     data_train, data_val, data_test = block_split(full_dataset, seed=SEED)
-    print(f"Dataset: {len(full_dataset)} lignes -> "
+    print(f"device  : {DEVICE}")
+    print(f"Dataset : {len(full_dataset)} lignes -> "
           f"train {len(data_train)} / val {len(data_val)} / test {len(data_test)} (split par blocs)")
 
     train_loader = DataLoader(data_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
@@ -172,6 +175,9 @@ if __name__ == "__main__":
               for k, o in optims.items()}
     best = {k: {"cart": float("inf"), "state": None, "epoch": -1} for k in directions}
     bad_epochs = {k: 0 for k in directions}
+
+    # Initialisation TensorBoard
+    writer = SummaryWriter(TENSORBOARD_DIR)
 
     LOG_PATH = os.path.join(LOG_DIR, "training_log.csv")
     comp_keys = ["total", "cart", "v", "angle", "speed", "joint"]
@@ -204,6 +210,12 @@ if __name__ == "__main__":
                 else:
                     bad_epochs[d] += 1
 
+                # Logging TensorBoard
+                for phase, metrics in [("train", tr), ("val", va)]:
+                    for key, value in metrics.items():
+                        writer.add_scalar(f"{d}/{phase}/{key}", value, epoch)
+                writer.add_scalar(f"{d}/learning_rate", optims[d].param_groups[0]['lr'], epoch)
+
                 for k in comp_keys:
                     row[f"train_{d}_{k}"] = tr[k]
                     row[f"val_{d}_{k}"] = va[k]
@@ -216,6 +228,9 @@ if __name__ == "__main__":
             if all(bad_epochs[d] > PATIENCE for d in directions):
                 print(f"\nEarly stopping à l'époque {epoch + 1}.")
                 break
+
+    # Fermeture du writer TensorBoard
+    writer.close()
 
     # ── Sauvegarde des meilleurs modèles + config ─────────────────
     name_map = {"2to3": "action_mapper_2to3", "3to2": "action_mapper_3to2"}
@@ -260,3 +275,5 @@ if __name__ == "__main__":
     plt.close()
     print(f"Courbes -> {plot_path}")
     print(f"\nDone. Sorties dans {RUN_DIR}")
+    print(f"TensorBoard logs dans {TENSORBOARD_DIR}")
+    print(f"Pour lancer TensorBoard : tensorboard --logdir={TENSORBOARD_DIR}")

@@ -1,24 +1,104 @@
-source .venv/bin/activate 
+source .venv/bin/activate
+
+# 1. Auto-test du nouveau mapper analytique (~5 s)
+python3 -m direct_method.state_mapper_analytic
+
+# 2. Ré-entraîner le PPO 2DoF, budget 40 M  ->  data/models/ppo_pushball_2dof_4
+#    (~2,7× la durée du run 15 M)
+python3 -m agents.train.train_pushball_2dof
+
+# 3. Comparaison des mappers sur le nouveau PPO (mêmes seeds)
+#    ATTENTION : utiliser ppo_pushball_final.zip, PAS best_model.zip (cf. §7.1)
+PPO_DIR=data/models/ppo_pushball_2dof_4
+for m in legacy jacobian conditioned; do
+  python3 -m direct_method.transfer_pushball_3to2dof --mapper $m --episodes 300 --seed 0 \
+      --model-path $PPO_DIR/ppo_pushball_final.zip --vecnorm-path $PPO_DIR/vec_normalize.pkl
+done
+
+# variante state mapper appris + passthrough : 
+python3 -m direct_method.transfer_pushball_3to2dof --mapper conditioned --run-state run_03_kin \
+    --episodes 300 --seed 0 --model-path $PPO_DIR/ppo_pushball_final.zip --vecnorm-path $PPO_DIR/vec_normalize.pkl
 
 
+    
 # 1. Entraîner le mapper d'états (positions + vitesses articulaires)
 python3 -m direct_method.train_states_mapper
 
 # 2. Entraîner le mapper d'actions (couples/forces articulaires)  
 python3 -m direct_method.train_actions_mapper
-python3 -m direct_method.train_actions_mapper_2
 
 # 3. (Optionnel) Visualiser les données
 python3 -m direct_method.print_dataset
 
 
 python3 -m direct_method.visualize_state_mapper 
-python3 -m direct_method.visualize_velocity_mapper
-python3 -m direct_method.visualize_velocity_mapper_2 --run-id run_03
+#python3 -m direct_method.visualize_state_mapper --run-id run_01
+python3 -m direct_method.visualize_action_mapper --run-action-cond run_04_cond 
+#python3 -m direct_method.visualize_action_mapper --run-action-legacy run_02 
+
+python3 -m direct_method.eval_mappers --mapper jacobian
+python3 -m direct_method.eval_mappers --mapper legacy --run-action-legacy run_02 
+python3 -m direct_method.eval_mappers --mapper conditioned --run-action-cond run_04_cond 
 
 
-# transfer 3dof to 2dof
-python3 -m direct_method.transfer_pushball_3to2dof
+python3 -m direct_method.visualize_transfer_2to3dof
+python3 -m direct_method.visualize_transfer_3to2dof
+python3 -m direct_method.visualize_transfer_2to3dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+python3 -m direct_method.visualize_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
 
-# transfer 2dof to 3dof
-python3 -m test_transfer_2to3dof
+python3 -m direct_method.visualize_transfer_2to3dof --mapper legacy --run-action-legacy run_02 
+python3 -m direct_method.visualize_transfer_3to2dof --mapper legacy --run-action-legacy run_02 
+
+python3 -m direct_method.visualize_transfer_2to3dof --mapper conditioned --run-action-cond run_04_cond 
+python3 -m direct_method.visualize_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond 
+
+
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper jacobian
+python3 -m direct_method.eval_transfer_3to2dof --mapper jacobian
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper legacy --run-action-legacy run_02 
+python3 -m direct_method.eval_transfer_3to2dof --mapper legacy --run-action-legacy run_02 
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper conditioned --run-action-cond run_04_cond 
+python3 -m direct_method.eval_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond 
+
+
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper jacobian --run-state run_03_kin
+python3 -m direct_method.eval_transfer_3to2dof --mapper jacobian --run-state run_03_kin
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper legacy --run-action-legacy run_02 --run-state run_03_kin
+python3 -m direct_method.eval_transfer_3to2dof --mapper legacy --run-action-legacy run_02 --run-state run_03_kin
+
+python3 -m direct_method.eval_transfer_2to3dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+python3 -m direct_method.eval_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+
+
+
+
+
+python -m direct_method.transfer_pushball_rec_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_2/vec_normalize.pkl
+python -m direct_method.transfer_pushball_rec_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_2/vec_normalize.pkl
+
+
+# 2DoF → 3DoF
+python -m direct_method.transfer_pushball_rec_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_2/vec_normalize.pkl
+python -m direct_method.visualize_transfer_2to3dof_rec --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_2/vec_normalize.pkl
+
+# 3DoF → 2DoF
+python -m direct_method.transfer_pushball_rec_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_2/vec_normalize.pkl
+python -m direct_method.visualize_transfer_3to2dof_rec --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_2/vec_normalize.pkl
+
+
+
+# 2DoF → 3DoF
+python -m direct_method.transfer_pushball_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_1/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_1/vec_normalize.pkl
+python -m direct_method.visualize_transfer_2to3dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_1/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_1/vec_normalize.pkl
+
+# 3DoF → 2DoF
+python -m direct_method.transfer_pushball_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_1/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_1/vec_normalize.pkl
+python -m direct_method.visualize_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_1/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_1/vec_normalize.pkl
+
+
+

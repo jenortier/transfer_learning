@@ -1,0 +1,37 @@
+
+python -m direct_method.train_states_mapper
+python -m direct_method.train_actions_mapper
+
+tensorboard --logdir=direct_method/runs/
+
+
+
+
+python -m direct_method.visualize_transfer_2to3dof
+python -m direct_method.visualize_transfer_3to2dof --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+
+
+# 2DoF → 3DoF
+python -m direct_method.transfer_pushball_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_05_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_2/vec_normalize.pkl
+
+# 3DoF → 2DoF
+python -m direct_method.transfer_pushball_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_05_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_2/vec_normalize.pkl
+
+
+#####################################################################
+
+python -m direct_method.visualize_transfer_2to3dof_rec #--mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+python -m direct_method.visualize_transfer_3to2dof_rec --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin
+
+
+# 2DoF → 3DoF
+python -m direct_method.transfer_pushball_rec_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_2/vec_normalize.pkl
+# 3DoF → 2DoF
+python -m direct_method.transfer_pushball_rec_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_04_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_2/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_2/vec_normalize.pkl
+
+
+# 2DoF → 3DoF
+python -m direct_method.transfer_pushball_rec_2to3dof --episodes 200 --mapper conditioned --run-action-cond run_05_cond --run-state run_03_kin --model-path data/models/ppo_pushball_2dof_rec_3/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_2dof_rec_3/vec_normalize.pkl
+# 3DoF → 2DoF
+python -m direct_method.transfer_pushball_rec_3to2dof --episodes 200 --mapper conditioned --run-action-cond run_05_cond --run-state run_03_kin --model-path data/models/ppo_pushball_3dof_rec_3/ppo_pushball_final.zip --vecnorm-path data/models/ppo_pushball_3dof_rec_3/vec_normalize.pkl
+

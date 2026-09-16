@@ -51,8 +51,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
 
-from envs.env_pushball_2dof import PushBallEnv_2dof
-from envs.env_pushball_3dof import PushBallEnv_3dof
+from envs.env_pushball_2dof_rec import PushBallEnv_2dof
+from envs.env_pushball_3dof_rec import PushBallEnv_3dof
 from direct_method.mapper_models import (
     StateMapperMLP, ActionMapperMLP, ActionMapperConditionedMLP)
 from direct_method.action_mapper_baseline import JacobianActionMapper
@@ -162,8 +162,19 @@ def main():
     # normaliser les obs mappées avec les stats vues par la politique.
     import os
     if args.vecnorm_path and os.path.exists(args.vecnorm_path):
+        run_state = args.run_state
+        run_action_cond = args.run_action_cond
+        state_mapper_3to2_path = f"direct_method/runs/{run_state}/models/state_mapper_r2_to_r1.pt"
+        state_mapper_2to3_path = f"direct_method/runs/{run_state}/models/state_mapper_r1_to_r2.pt"
+        action_mapper_3to2_path = f"direct_method/runs/{run_action_cond}/models/action_mapper_3to2.pt"
+        action_mapper_2to3_path = f"direct_method/runs/{run_action_cond}/models/action_mapper_2to3.pt"
         vn3 = VecNormalize.load(args.vecnorm_path,
-                                DummyVecEnv([lambda: PushBallEnv_3dof(None)]))
+                                DummyVecEnv([lambda: PushBallEnv_3dof(
+                                    state_mapper_3to2_path=state_mapper_3to2_path,
+                                    state_mapper_2to3_path=state_mapper_2to3_path,
+                                    action_mapper_3to2_path=action_mapper_3to2_path,
+                                    action_mapper_2to3_path=action_mapper_2to3_path,
+                                )]))
         vn3.training = False
         normalize_obs = vn3.normalize_obs
     else:
@@ -180,9 +191,24 @@ def main():
 
     # ── Env 2DoF, obs brutes (pas de VecNormalize : shapes incompatibles
     #    et les mappers sont entraînés sur les obs physiquement normalisées) ──
+    # Passer les chemins des mappers pour activer la reconstruction reward
+    run_state = args.run_state
+    run_action_cond = args.run_action_cond
+    state_mapper_2to3_path = f"direct_method/runs/{run_state}/models/state_mapper_r1_to_r2.pt"
+    state_mapper_3to2_path = f"direct_method/runs/{run_state}/models/state_mapper_r2_to_r1.pt"
+    action_mapper_2to3_path = f"direct_method/runs/{run_action_cond}/models/action_mapper_2to3.pt"
+    action_mapper_3to2_path = f"direct_method/runs/{run_action_cond}/models/action_mapper_3to2.pt"
+
     render_mode = "human" if args.render else None
     env = DummyVecEnv([lambda: Monitor(
-        PushBallEnv_2dof(render_mode=render_mode, max_steps=args.max_steps))])
+        PushBallEnv_2dof(
+            render_mode=render_mode,
+            max_steps=args.max_steps,
+            state_mapper_2to3_path=state_mapper_2to3_path,
+            state_mapper_3to2_path=state_mapper_3to2_path,
+            action_mapper_2to3_path=action_mapper_2to3_path,
+            action_mapper_3to2_path=action_mapper_3to2_path,
+        ))])
     env.seed(args.seed)
 
     successes = 0

@@ -34,6 +34,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from direct_method.dataset import TrajectoriesTrainingDataset, block_split
@@ -57,7 +58,7 @@ HIDDEN_DIM = 256
 PATH_R1_TRAJ = f"direct_method/trajectories/{R1_NAME}.txt"
 PATH_R2_TRAJ = f"direct_method/trajectories/{R2_NAME}.txt"
 
-NUM_EPOCHS = int(os.environ.get("DM_EPOCHS", 150))   # DM_EPOCHS=5 pour un smoke test
+NUM_EPOCHS = int(os.environ.get("DM_EPOCHS", 100))   # DM_EPOCHS=5 pour un smoke test
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 256
 SEED = 0
@@ -75,6 +76,7 @@ RUN_DIR = os.path.join("direct_method/runs", RUN_ID)
 MODEL_DIR = os.path.join(RUN_DIR, "models")
 LOG_DIR = os.path.join(RUN_DIR, "logs")
 PLOT_DIR = os.path.join(RUN_DIR, "plots")
+TENSORBOARD_DIR = os.path.join(RUN_DIR, "tensorboard")
 
 FK = {2: fk_2dof, 3: fk_3dof}
 EFF_VEL = {2: eff_vel_2dof, 3: eff_vel_3dof}
@@ -141,7 +143,9 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
     np.random.seed(SEED)
 
-    for d in (MODEL_DIR, LOG_DIR, PLOT_DIR):
+    print(f"device  : {DEVICE}")
+
+    for d in (MODEL_DIR, LOG_DIR, PLOT_DIR, TENSORBOARD_DIR):
         os.makedirs(d, exist_ok=True)
 
     full_dataset = TrajectoriesTrainingDataset(
@@ -169,6 +173,9 @@ if __name__ == "__main__":
     fields = ["epoch"] + [f"{p}_{k}" for p in ("train", "val") for k in comp_keys]
     history = {"train": [], "val": []}
 
+    # Initialisation TensorBoard
+    writer = SummaryWriter(TENSORBOARD_DIR)
+
     LOG_PATH = os.path.join(LOG_DIR, "training_log.csv")
     with open(LOG_PATH, "w", newline="") as log_file:
         log_writer = csv.DictWriter(log_file, fieldnames=fields)
@@ -181,6 +188,12 @@ if __name__ == "__main__":
             history["train"].append(tr)
             history["val"].append(va)
             scheduler.step(va["total"])
+
+            # Logging TensorBoard
+            for phase, metrics in [("train", tr), ("val", va)]:
+                for key, value in metrics.items():
+                    writer.add_scalar(f"{phase}/{key}", value, epoch)
+            writer.add_scalar("learning_rate", optimizer.param_groups[0]['lr'], epoch)
 
             if va["total"] < best["total"]:
                 best = {"total": va["total"], "epoch": epoch + 1,
@@ -203,6 +216,9 @@ if __name__ == "__main__":
             if bad_epochs > PATIENCE:
                 print(f"\nEarly stopping à l'époque {epoch + 1}.")
                 break
+
+    # Fermeture du writer TensorBoard
+    writer.close()
 
     # ── Sauvegarde (mêmes noms de fichiers qu'avant : compat transfert/visu) ──
     for name, state in [("state_mapper_r1_to_r2", best["state_12"]),
@@ -242,3 +258,5 @@ if __name__ == "__main__":
     plt.close()
     print(f"Courbes -> {plot_path}")
     print(f"\nDone. Sorties dans {RUN_DIR}")
+    print(f"TensorBoard logs dans {TENSORBOARD_DIR}")
+    print(f"Pour lancer TensorBoard : tensorboard --logdir={TENSORBOARD_DIR}")

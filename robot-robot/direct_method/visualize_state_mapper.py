@@ -36,7 +36,15 @@ def normalize_2dof(raw):
     state = np.zeros((len(raw), STATE_DIM_R1), dtype=np.float32)
     state[:, 0:2] = raw[:, 0:2] / PI
     state[:, 2:4] = raw[:, 2:4] / OMEGA_MAX
-    state[:, 4:6] = raw[:, 4:6] / MAX_REACH
+    # ATTENTION : les colonnes 4:6 du fichier sont en encodage fenêtre
+    # (eff + 5) / 10, PAS en mètres. On recalcule l'effecteur par cinématique
+    # directe comme dataset.py et les envs (eff / max_reach) — c'est la
+    # distribution vue par les mappers récents (run_03_kin) en production.
+    # L'ancienne normalisation raw[:, 4:6] / MAX_REACH reproduisait la
+    # distribution buguée de run_01 : elle faisait paraître run_01 bon et
+    # run_03_kin mauvais, à l'inverse de leur comportement réel au transfert.
+    for i in range(len(raw)):
+        state[i, 4:6] = fk_2dof(raw[i, 0:2]) / MAX_REACH
     return state
 
 
@@ -147,7 +155,7 @@ def state_title_3dof(theta, idx):
 def main():
     parser = argparse.ArgumentParser(description="Visualiser l'état 2-DoF et sa reconstruction 3-DoF par le state mapper.")
     parser.add_argument("--idx", type=int, default=None, help="Index de l'état à afficher. Par défaut: milieu de la trajectoire.")
-    parser.add_argument("--run-id", default="run_01", help="ID du run d'entraînement, ex: run_01.")
+    parser.add_argument("--run-id", default="run_03_kin", help="ID du run d'entraînement, ex: run_03_kin.")
     parser.add_argument("--delay", type=float, default=0.5, help="Délai entre deux images pour l'animation, en secondes.")
     parser.add_argument("--save", action="store_true", help="Sauvegarder l'image PNG générée.")
     parser.add_argument("--device", default=None, choices=["cpu", "cuda"], help="Device PyTorch.")

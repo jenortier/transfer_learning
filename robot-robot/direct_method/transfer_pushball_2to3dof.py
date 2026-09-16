@@ -1,31 +1,25 @@
-"""Transfert push-ball : politique PPO 3DoF exécutée sur le bras 2DoF.
+"""Transfert push-ball : politique PPO 2DoF exécutée sur le bras 3DoF.
 
 Flux par pas de temps :
-    obs_2dof (10D brute) = [bloc bras 6D | balle 2D | cible 2D]
-      -> state mapper 2->3 (bloc bras 6D) -> bloc bras 3DoF 8D
-      -> obs_3dof (12D) = [bloc 8D | balle | cible]
-      -> normalisation VecNormalize (stats du run PPO 3DoF)   <- indispensable :
+    obs_3dof (12D brute) = [bloc bras 8D | balle 2D | cible 2D]
+      -> state mapper 3->2 (bloc bras 8D) -> bloc bras 2DoF 6D
+      -> obs_2dof (10D) = [bloc 6D | balle | cible]
+      -> normalisation VecNormalize (stats du run PPO 2DoF)   <- indispensable :
          la politique a été entraînée sur des obs normalisées
-      -> PPO 3DoF -> action_3 (= dtheta_3 / omega_max)
-      -> action mapper (--mapper) -> action_2 -> env 2DoF
+      -> PPO 2DoF -> action_2 (= dtheta_2 / omega_max)
+      -> action mapper (--mapper) -> action_3 -> env 3DoF
 
 State mappers disponibles (--run-state) :
-    <run_id>          : StateMapperMLP appris (ex: run_03_kin (défaut), run_01).
+    analytic          : IK 2DoF exacte + vitesses par Jacobiens (défaut,
+                        aucun entraînement — voir state_mapper_analytic.py)
+    <run_id>          : StateMapperMLP appris (ex: run_03_kin, run_01).
                         Les composantes effecteur de l'état mappé sont alors
-                        remplacées par l'effecteur 2DoF réel (identique pour
+                        remplacées par l'effecteur 3DoF réel (identique pour
                         les deux robots) sauf si --no-eff-passthrough.
-    analytic          : IK redondante 2->3 résolue analytiquement (dernier lien
-                        radial) + vitesses par Jacobiens, aucun entraînement
-                        (voir state_mapper_analytic.py). ATTENTION : contrairement
-                        au sens 3->2 (IK 2DoF unique et exacte), le 3DoF est
-                        redondant ; la posture reconstruite est exacte en position
-                        mais arbitraire, donc HORS DISTRIBUTION pour la politique
-                        3DoF -> transfert dégradé. Préférer un state mapper appris
-                        ici (run_03_kin : ~80 % contre ~0 % en analytic sur 10 ép.).
 
 Mappers d'action disponibles (--mapper) :
     legacy      : ActionMapperMLP non conditionné (run_02) — référence historique
-    jacobian    : baseline analytique J2⁺ @ (J3 @ dθ3) — aucun entraînement requis
+    jacobian    : baseline analytique J3⁺ @ (J2 @ dθ2) — aucun entraînement requis
     conditioned : ActionMapperConditionedMLP (run_04_cond) — conditionné par θ2 et θ3
 
 Corrections par rapport à l'ancienne version :
@@ -34,10 +28,10 @@ Corrections par rapport à l'ancienne version :
     - normalisation VecNormalize des obs mappées avant model.predict (l'ancien
       script donnait des obs brutes à une politique entraînée en obs normalisées) ;
     - suppression du hack `clamp(-2, 2) * 0.5` sur l'action ;
-    - le VecNormalize 3DoF n'est plus chargé sur l'env 2DoF (shapes 12 vs 10).
+    - le VecNormalize 2DoF n'est plus chargé sur l'env 3DoF (shapes 10 vs 12).
 
 Usage :
-    cd robot-robot && python3 -m direct_method.transfer_pushball_3to2dof \
+    cd robot-robot && python3 -m direct_method.transfer_pushball_2to3dof \
         --mapper conditioned --episodes 100 --seed 0
 """
 
@@ -51,121 +45,127 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
 
-from envs.env_pushball_2dof import PushBallEnv_2dof
 from envs.env_pushball_3dof import PushBallEnv_3dof
+from envs.env_pushball_2dof import PushBallEnv_2dof
 from direct_method.mapper_models import (
     StateMapperMLP, ActionMapperMLP, ActionMapperConditionedMLP)
 from direct_method.action_mapper_baseline import JacobianActionMapper
-from direct_method.state_mapper_analytic import AnalyticStateMapper2to3
+from direct_method.state_mapper_analytic import AnalyticStateMapper3to2
 from direct_method.kinematics import OMEGA_MAX
 
 # Dimensions des blocs bras (voir envs/arm_2dof.py et arm_3dof.py)
-R1_STATE_DIM = 6    # [θ1, θ2, dθ1, dθ2, x, y] normalisé          (bras 2DoF réel)
-R2_STATE_DIM = 8    # [θ1, θ2, θ3, dθ1, dθ2, dθ3, x, y] normalisé  (bras 3DoF virtuel)
+R1_STATE_DIM = 6    # [θ1, θ2, dθ1, dθ2, x, y] normalisé
+R2_STATE_DIM = 8    # [θ1, θ2, θ3, dθ1, dθ2, dθ3, x, y] normalisé
 HIDDEN_DIM = 256
 
 
 def load_state_mapper(run_state, lam, eff_passthrough):
-    """Retourne (fn(arm_obs_2_6d) -> state_r2_8d, reset_fn)."""
+    """Retourne (fn(arm_obs_3_8d) -> state_r1_6d, reset_fn)."""
     if run_state == "analytic":
-        mapper = AnalyticStateMapper2to3(lam=lam)
+        mapper = AnalyticStateMapper3to2(lam=lam)
         return mapper, mapper.reset
 
-    path = f"direct_method/runs/{run_state}/models/state_mapper_r1_to_r2.pt"
-    m = StateMapperMLP(R1_STATE_DIM, R2_STATE_DIM, HIDDEN_DIM)
+    path = f"direct_method/runs/{run_state}/models/state_mapper_r2_to_r1.pt"
+    m = StateMapperMLP(R2_STATE_DIM, R1_STATE_DIM, HIDDEN_DIM)
     m.load_state_dict(torch.load(path, map_location="cpu"))
     m.eval()
 
-    def fn(arm_obs_2):
+    def fn(arm_obs_3):
         with torch.no_grad():
-            state_r2 = m(torch.from_numpy(arm_obs_2).unsqueeze(0)).squeeze(0).numpy()
+            state_r1 = m(torch.from_numpy(arm_obs_3).unsqueeze(0)).squeeze(0).numpy()
         if eff_passthrough:
             # l'effecteur est identique pour les deux robots (même convention
             # eff/max_reach) : autant transmettre la valeur exacte plutôt que
-            # la reconstruction du réseau.
-            state_r2[6:8] = arm_obs_2[4:6]
-        return state_r2
+            # la reconstruction du réseau (~10 cm d'erreur au p90 pour un
+            # seuil de contact balle de 0,2 m)
+            state_r1[4:6] = arm_obs_3[6:8]
+        return state_r1
 
     return fn, lambda: None
 
 
 def load_action_mapper(kind, run_legacy, run_cond, lam):
-    """Retourne fn(action_3, state_r2_8d, arm_obs_2dof_6d) -> action_2 (normalisée)."""
+    """Retourne fn(action_2, state_r1_6d, arm_obs_3dof_8d) -> action_3 (normalisée)."""
     if kind == "legacy":
-        path = f"direct_method/runs/{run_legacy}/models/action_mapper_r2_to_r1.pt"
-        m = ActionMapperMLP(3, 2, HIDDEN_DIM)
+        path = f"direct_method/runs/{run_legacy}/models/action_mapper_r1_to_r2.pt"
+        m = ActionMapperMLP(2, 3, HIDDEN_DIM)
         m.load_state_dict(torch.load(path, map_location="cpu"))
         m.eval()
 
-        def fn(action_3, state_r2, arm_obs_2):
+        def fn(action_2, state_r1, arm_obs_3):
             with torch.no_grad():
-                a = torch.from_numpy(action_3.astype(np.float32)).unsqueeze(0)
+                a = torch.from_numpy(action_2.astype(np.float32)).unsqueeze(0)
                 return m(a).squeeze(0).numpy()
         return fn
 
     if kind == "conditioned":
-        path = f"direct_method/runs/{run_cond}/models/action_mapper_3to2.pt"
-        m = ActionMapperConditionedMLP(3, 2, HIDDEN_DIM)
+        path = f"direct_method/runs/{run_cond}/models/action_mapper_2to3.pt"
+        m = ActionMapperConditionedMLP(2, 3, HIDDEN_DIM)
         m.load_state_dict(torch.load(path, map_location="cpu"))
         m.eval()
 
-        def fn(action_3, state_r2, arm_obs_2):
+        def fn(action_2, state_r1, arm_obs_3):
             with torch.no_grad():
-                a = torch.from_numpy(action_3.astype(np.float32)).unsqueeze(0)
-                q3 = torch.from_numpy(state_r2[:3].astype(np.float32)).unsqueeze(0)
-                q2 = torch.from_numpy(arm_obs_2[:2].astype(np.float32)).unsqueeze(0)
-                return m(a, q3, q2).squeeze(0).numpy()
+                a = torch.from_numpy(action_2.astype(np.float32)).unsqueeze(0)
+                q2 = torch.from_numpy(state_r1[:2].astype(np.float32)).unsqueeze(0)
+                q3 = torch.from_numpy(arm_obs_3[:3].astype(np.float32)).unsqueeze(0)
+                return m(a, q2, q3).squeeze(0).numpy()
         return fn
 
     if kind == "jacobian":
-        base = JacobianActionMapper("3to2", lam=lam)
+        base = JacobianActionMapper("2to3", lam=lam)
 
-        def fn(action_3, state_r2, arm_obs_2):
-            dtheta_3 = action_3 * OMEGA_MAX
-            theta_3 = state_r2[:3] * np.pi     # posture 3DoF mappée (virtuelle)
-            theta_2 = arm_obs_2[:2] * np.pi    # posture 2DoF réelle
-            dtheta_2 = base(dtheta_3, theta_3, theta_2)
-            return dtheta_2 / OMEGA_MAX
+        def fn(action_2, state_r1, arm_obs_3):
+            dtheta_2 = action_2 * OMEGA_MAX
+            theta_2 = state_r1[:2] * np.pi     # posture 2DoF mappée
+            theta_3 = arm_obs_3[:3] * np.pi    # posture 3DoF réelle
+            dtheta_3 = base(dtheta_2, theta_2, theta_3)
+            return dtheta_3 / OMEGA_MAX
         return fn
 
     raise ValueError(f"mapper inconnu: {kind}")
 
 
 def main():
-    p = argparse.ArgumentParser(description="Transfert push-ball 3DoF -> 2DoF")
+    p = argparse.ArgumentParser(description="Transfert push-ball 2DoF -> 3DoF")
     p.add_argument("--mapper", choices=["legacy", "jacobian", "conditioned"],
                    default="jacobian")
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--max-steps", type=int, default=300)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--render", action="store_true")
-    p.add_argument("--model-path", default="data/models/ppo_pushball_3dof_1/ppo_pushball_final.zip")
-    p.add_argument("--vecnorm-path", default="data/models/ppo_pushball_3dof_1/vec_normalize.pkl")
+    # ppo_pushball_final (40M) et non best_model : la sélection "best" du
+    # callback repose sur le reward moyen de 20 épisodes (bruité) et son
+    # vec_normalize.pkl est écrasé par la sauvegarde finale — mesuré en natif :
+    # final 99 % de réussite, best_model (snapshot 22M) 59 %.
+    p.add_argument("--model-path", default="data/models/ppo_pushball_2dof_1/ppo_pushball_final.zip")
+    p.add_argument("--vecnorm-path", default="data/models/ppo_pushball_2dof_1/vec_normalize.pkl")
     p.add_argument("--run-state", default="analytic",
-                   help="run d'un state mapper appris (run_01, run_03_kin) ou "
-                        "'analytic' (IK redondante 2->3, hors distribution pour la "
-                        "politique 3DoF -> transfert dégradé, cf. docstring)")
+                   help="'analytic' (IK exacte, défaut) ou run d'un state mapper "
+                        "appris (ex: run_03_kin, run_01)")
     p.add_argument("--no-eff-passthrough", action="store_true",
                    help="ne pas remplacer l'effecteur mappé par l'effecteur réel "
                         "(state mappers appris uniquement)")
     p.add_argument("--run-action-legacy", default="run_02")
     p.add_argument("--run-action-cond", default="run_04_cond")
-    p.add_argument("--lam", type=float, default=0.05)
+    # 0.02 : balayé en rollout (0.05 -> 74 %, 0.02 -> 79 % sur 300 épisodes) ;
+    # moins d'amortissement = meilleur suivi de v_eff, encore stable ici
+    p.add_argument("--lam", type=float, default=0.02)
     args = p.parse_args()
 
-    # ── Politique 3DoF + stats VecNormalize associées ────────────────
+    # ── Politique 2DoF + stats VecNormalize associées ────────────────
     model = PPO.load(args.model_path, custom_objects={
         "learning_rate": 3e-4, "lr_schedule": lambda _: 3e-4,
         "clip_range": lambda _: 0.2})
 
-    # VecNormalize chargé sur un env 3DoF factice : sert uniquement à
+    # VecNormalize chargé sur un env 2DoF factice : sert uniquement à
     # normaliser les obs mappées avec les stats vues par la politique.
     import os
     if args.vecnorm_path and os.path.exists(args.vecnorm_path):
-        vn3 = VecNormalize.load(args.vecnorm_path,
-                                DummyVecEnv([lambda: PushBallEnv_3dof(None)]))
-        vn3.training = False
-        normalize_obs = vn3.normalize_obs
+        vn2 = VecNormalize.load(args.vecnorm_path,
+                                DummyVecEnv([lambda: PushBallEnv_2dof(None)]))
+        vn2.training = False
+        normalize_obs = vn2.normalize_obs
     else:
         print(f"ATTENTION: vec_normalize.pkl introuvable ({args.vecnorm_path}).\n"
               "La politique a probablement été entraînée avec VecNormalize : sans les\n"
@@ -178,18 +178,18 @@ def main():
     action_fn = load_action_mapper(args.mapper, args.run_action_legacy,
                                    args.run_action_cond, args.lam)
 
-    # ── Env 2DoF, obs brutes (pas de VecNormalize : shapes incompatibles
+    # ── Env 3DoF, obs brutes (pas de VecNormalize : shapes incompatibles
     #    et les mappers sont entraînés sur les obs physiquement normalisées) ──
     render_mode = "human" if args.render else None
     env = DummyVecEnv([lambda: Monitor(
-        PushBallEnv_2dof(render_mode=render_mode, max_steps=args.max_steps))])
+        PushBallEnv_3dof(render_mode=render_mode, max_steps=args.max_steps))])
     env.seed(args.seed)
 
     successes = 0
     steps_on_success = []
     final_dist_on_failure = []
 
-    print(f"Transfert push-ball 2DoF <- PPO 3DoF | mapper={args.mapper} | "
+    print(f"Transfert push-ball 3DoF <- PPO 2DoF | mapper={args.mapper} | "
           f"state mapper={args.run_state} | {args.episodes} épisodes | seed={args.seed}\n")
 
     for ep in range(args.episodes):
@@ -200,24 +200,24 @@ def main():
         info_last = {}
 
         while not done:
-            obs10 = obs[0]
-            arm_obs_2 = obs10[:R1_STATE_DIM].astype(np.float32)
-            task_obs = obs10[R1_STATE_DIM:]
+            obs12 = obs[0]
+            arm_obs_3 = obs12[:R2_STATE_DIM].astype(np.float32)
+            task_obs = obs12[R2_STATE_DIM:]
 
-            # 1) état 2DoF -> état 3DoF
-            state_r2 = state_fn(arm_obs_2)
+            # 1) état 3DoF -> état 2DoF
+            state_r1 = state_fn(arm_obs_3)
 
-            # 2) obs 3DoF complète + normalisation VecNormalize
-            obs12 = np.concatenate([state_r2, task_obs]).astype(np.float32)
-            obs12_n = normalize_obs(obs12[None, :])[0]
+            # 2) obs 2DoF complète + normalisation VecNormalize
+            obs10 = np.concatenate([state_r1, task_obs]).astype(np.float32)
+            obs10_n = normalize_obs(obs10[None, :])[0]
 
-            # 3) action 3DoF
-            action_3, _ = model.predict(obs12_n, deterministic=True)
+            # 3) action 2DoF
+            action_2, _ = model.predict(obs10_n, deterministic=True)
 
-            # 4) action 3DoF -> action 2DoF
-            action_2 = np.clip(action_fn(action_3, state_r2, arm_obs_2), -1.0, 1.0)
+            # 4) action 2DoF -> action 3DoF
+            action_3 = np.clip(action_fn(action_2, state_r1, arm_obs_3), -1.0, 1.0)
 
-            obs, reward, dones, infos = env.step(action_2.reshape(1, -1))
+            obs, reward, dones, infos = env.step(action_3.reshape(1, -1))
             if args.render:
                 env.envs[0].render()
             step_count += 1
